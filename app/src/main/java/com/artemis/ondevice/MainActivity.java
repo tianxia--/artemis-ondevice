@@ -3,6 +3,8 @@ package com.artemis.ondevice;
 import android.Manifest;
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.content.ClipData;
+import android.content.ClipboardManager;
 import android.content.Intent;
 import android.graphics.Typeface;
 import android.os.Bundle;
@@ -261,6 +263,18 @@ public class MainActivity extends Activity implements RunLog.Listener {
         api.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, ProviderStore.API_TYPES));
         final EditText key = field(form, existing != null && ProviderStore.hasApiKey(this, existing.id)
                 ? "API key (stored; leave blank to keep)" : "API key", true);
+        // Some keyboards (Gboard) hide clipboard paste in password fields; read the clipboard directly.
+        form.addView(button("Paste API key from clipboard", new View.OnClickListener() {
+            @Override public void onClick(View v) {
+                ClipboardManager cm = (ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+                ClipData clip = cm.getPrimaryClip();
+                CharSequence text = clip != null && clip.getItemCount() > 0
+                        ? clip.getItemAt(0).coerceToText(MainActivity.this) : null;
+                if (text == null || text.toString().trim().isEmpty()) { toast("Clipboard is empty"); return; }
+                key.setText(text.toString().trim());
+                key.setSelection(key.length());
+            }
+        }));
         final EditText models = field(form, "Models, comma-separated (or Fetch later)", false);
         form.addView(api, 3);
         if (existing == null) form.addView(presetSpinner, 0);
