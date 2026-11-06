@@ -57,7 +57,7 @@ public class RunDetailActivity extends AppCompatActivity implements RunState.Lis
                     Toast.makeText(this, R.string.toast_running, Toast.LENGTH_SHORT).show();
                 } else {
                     AgentService.start(this, run.task);
-                    if (AppSettings.bubble(this)) moveTaskToBack(true);
+                    moveTaskToBack(true);
                 }
             } else if (id == R.id.menu_copy) {
                 getSystemService(ClipboardManager.class).setPrimaryClip(

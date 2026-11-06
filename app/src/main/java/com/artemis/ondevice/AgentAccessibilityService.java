@@ -5,6 +5,8 @@ import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
 import android.view.accessibility.AccessibilityEvent;
+import android.view.accessibility.AccessibilityNodeInfo;
+import android.view.accessibility.AccessibilityWindowInfo;
 
 /**
  * The agent's accessibility service: gestures, screenshots and the UI tree for the
@@ -61,15 +63,25 @@ public class AgentAccessibilityService extends AccessibilityService {
             return;
         }
         String pkg = event.getPackageName().toString();
-        CharSequence cls = event.getClassName();
         boolean ours = getPackageName().equals(pkg);
-        // The bubble's own windows report our package too; only our real screens count as "in front".
-        boolean ourScreen = ours && cls != null && cls.toString().startsWith(getPackageName())
-                && cls.toString().endsWith("Activity");
+        // The bubble's own windows report our package too, so for our package ask which
+        // application window is actually active instead of trusting the event.
+        boolean ourScreen = ours && ourAppWindowActive();
         if (ours && !ourScreen) return;
         currentPackage = pkg;
-        // Our own screens already show the run; the bubble would only cover them.
+        // While our own screens are in front the run holds: the agent must not act on them, and
+        // the user is looking at (or stopping) the run. The bubble would only cover them.
+        RunState.setHold(RunState.Hold.APP_SCREEN, ourScreen);
         if (bubble != null) bubble.setSuppressed(ourScreen);
+    }
+
+    private boolean ourAppWindowActive() {
+        for (AccessibilityWindowInfo w : getWindows()) {
+            if (w.getType() != AccessibilityWindowInfo.TYPE_APPLICATION || !w.isActive()) continue;
+            AccessibilityNodeInfo root = w.getRoot();
+            return root != null && getPackageName().contentEquals(root.getPackageName());
+        }
+        return false;
     }
 
     @Override

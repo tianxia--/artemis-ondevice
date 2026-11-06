@@ -337,14 +337,14 @@ final class FloatingBubble implements RunState.Listener {
         panel.setVisibility(View.VISIBLE);
         wm.addView(panel, panelLp);
         panelShown = true;
-        if (RunState.isRunning()) RunState.setPaused(true);
+        RunState.setHold(RunState.Hold.PANEL, true);
     }
 
     private void hidePanel() {
         if (!panelShown) return;
         wm.removeView(panel);
         panelShown = false;
-        RunState.setPaused(false);
+        RunState.setHold(RunState.Hold.PANEL, false);
     }
 
     private void renderPanel(RunRecord r) {

@@ -25,8 +25,13 @@ final class RunState {
     private static volatile RunRecord current;
     private static volatile Phase phase = Phase.IDLE;
     private static volatile String lastFinishedId;
-    /** Set while the user has the bubble panel open: the loop waits before its next step or action. */
-    private static volatile boolean paused;
+    /**
+     * Why the user is holding the run: the bubble panel is open, or one of our own screens is in
+     * front. While either holds, the loop waits before its next step or action, so it neither
+     * acts on our screens nor races the user's Stop. Set on the main thread only.
+     */
+    enum Hold { PANEL, APP_SCREEN }
+    private static volatile boolean heldByPanel, heldByAppScreen;
 
     private RunState() {}
 
@@ -34,13 +39,13 @@ final class RunState {
     static Phase phase() { return phase; }
     static boolean isRunning() { RunRecord r = current; return r != null && r.isRunning(); }
     static String lastFinishedId() { return lastFinishedId; }
-    static boolean paused() { return paused; }
+    static boolean paused() { return heldByPanel || heldByAppScreen; }
 
-    /** Main thread (bubble panel). */
-    static void setPaused(boolean value) {
-        if (paused == value) return;
-        paused = value;
-        publish();
+    static void setHold(Hold source, boolean value) {
+        boolean before = paused();
+        if (source == Hold.PANEL) heldByPanel = value;
+        else heldByAppScreen = value;
+        if (paused() != before) publish();
     }
 
     // ---- writer side (loop thread)
@@ -62,7 +67,6 @@ final class RunState {
 
     static void end(RunRecord r) {
         phase = Phase.IDLE;
-        paused = false;
         lastFinishedId = r.id;
         publish();
     }

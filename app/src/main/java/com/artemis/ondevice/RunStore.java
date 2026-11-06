@@ -71,6 +71,8 @@ final class RunStore {
         File f = new File(new File(root(ctx), id), "run.json");
         if (!f.exists()) return null;
         try {
+            RunRecord live = RunState.current();
+            if (live != null && live.id.equals(id) && live.isRunning()) return live;
             return RunRecord.fromJson(new JSONObject(new String(Files.readAllBytes(f.toPath()), StandardCharsets.UTF_8)));
         } catch (Exception e) {
             android.util.Log.w(AgentService.TAG, "Unreadable run " + id + ": " + e.getMessage());

@@ -189,8 +189,8 @@ public class MainActivity extends AppCompatActivity implements RunState.Listener
         getSystemService(InputMethodManager.class).hideSoftInputFromWindow(taskInput.getWindowToken(), 0);
         taskInput.setText("");
         AgentService.start(this, task);
-        // With the bubble on, step aside so the agent works on the phone and the bubble shows progress.
-        if (AppSettings.bubble(this)) moveTaskToBack(true);
+        // Step aside: the agent works on the phone, and a run holds while our own screens are in front.
+        moveTaskToBack(true);
     }
 
     private void openRun(String id) {
@@ -214,7 +214,8 @@ public class MainActivity extends AppCompatActivity implements RunState.Listener
         liveCard.setVisibility(running ? View.VISIBLE : View.GONE);
         composerCard.setVisibility(running ? View.GONE : View.VISIBLE);
         if (!running) return;
-        liveStatus.setText(getString(R.string.status_progress, r.steps.size() + 1, Format.phase(this, RunState.phase())));
+        liveStatus.setText(RunState.paused() ? getString(R.string.status_paused_app, r.steps.size() + 1)
+                : getString(R.string.status_progress, r.steps.size() + 1, Format.phase(this, RunState.phase())));
         liveElapsed.setText(Format.duration(r.durationMs()));
         liveTask.setText(r.task);
         RunRecord.Step last = r.lastStep();

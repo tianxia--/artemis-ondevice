@@ -42,6 +42,7 @@
     <string name="status_error">出错</string>
     <string name="status_starting">准备中…</string>
     <string name="status_progress">第 %1$d 步 · %2$s</string>
+    <string name="status_paused_app">第 %d 步 · 已暂停（离开本应用后继续）</string>
     <string name="status_paused">第 %d 步 · 已暂停（关闭面板继续）</string>
     <string name="phase_observing">读取屏幕</string>
     <string name="phase_thinking">模型思考</string>
