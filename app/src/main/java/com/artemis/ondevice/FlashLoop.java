@@ -357,7 +357,8 @@ final class FlashLoop {
             intent = pm.getLaunchIntentForPackage(pkg);
             if (intent == null) return null;
         }
-        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED);
+        // Start fresh (like Artemis manage_app launch), not on whatever page the app was left on.
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
         s.startActivity(intent);
         return pkg;
     }

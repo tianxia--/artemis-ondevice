@@ -6,6 +6,8 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Keeps the CPU awake for the length of one run (AgentService). -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
 
     <!-- open_app resolves launcher apps by package or label. -->
     <queries>
