@@ -1,0 +1,251 @@
+package com.artemis.ondevice;
+
+import android.util.Base64;
+
+import org.json.JSONArray;
+import org.json.JSONObject;
+
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * Minimal chat client for the two supported provider API types:
+ * {@code openai-completions} (POST {base}/chat/completions) and
+ * {@code anthropic-messages} (POST {base}/v1/messages).
+ *
+ * One request = system prompt + one user message (text, optional JPEG) + tool list.
+ * Tools are passed in OpenAI function form and translated for Anthropic.
+ */
+final class ChatClient {
+
+    static final int CONNECT_TIMEOUT_MS = 15_000;
+    static final int READ_TIMEOUT_MS = 120_000;
+    /** Bounded: one retry on 429 / 5xx / IO errors. */
+    private static final int MAX_ATTEMPTS = 2;
+
+    static final class ToolCall {
+        final String name;
+        final JSONObject args;
+        ToolCall(String name, JSONObject args) { this.name = name; this.args = args; }
+    }
+
+    static final class Result {
+        String text = "";
+        final List<ToolCall> toolCalls = new ArrayList<>();
+        int promptTokens;
+        int completionTokens;
+        long latencyMs;
+    }
+
+    static final class HttpError extends IOException {
+        final int code;
+        HttpError(int code, String body) {
+            super("HTTP " + code + ": " + (body.length() > 400 ? body.substring(0, 400) : body));
+            this.code = code;
+        }
+    }
+
+    private final ProviderStore.Provider provider;
+    private final String apiKey;
+
+    ChatClient(ProviderStore.Provider provider, String apiKey) {
+        this.provider = provider;
+        this.apiKey = apiKey;
+    }
+
+    Result complete(String model, String system, String userText, byte[] jpeg, JSONArray tools,
+                    int maxTokens) throws Exception {
+        boolean anthropic = ProviderStore.API_ANTHROPIC.equals(provider.api);
+        JSONObject body = anthropic
+                ? anthropicBody(model, system, userText, jpeg, tools, maxTokens)
+                : openAiBody(model, system, userText, jpeg, tools, maxTokens);
+        String path = anthropic ? "/v1/messages" : "/chat/completions";
+        long t0 = System.currentTimeMillis();
+        JSONObject resp = post(path, body);
+        Result r = anthropic ? parseAnthropic(resp) : parseOpenAi(resp);
+        r.latencyMs = System.currentTimeMillis() - t0;
+        return r;
+    }
+
+    /** Model ids from the endpoint's /models route (/v1/models for Anthropic). */
+    List<String> fetchModels() throws Exception {
+        boolean anthropic = ProviderStore.API_ANTHROPIC.equals(provider.api);
+        JSONObject resp = request("GET", anthropic ? "/v1/models" : "/models", null);
+        List<String> ids = new ArrayList<>();
+        JSONArray data = resp.optJSONArray("data");
+        if (data != null) {
+            for (int i = 0; i < data.length(); i++) {
+                String id = data.optJSONObject(i).optString("id");
+                if (!id.isEmpty()) ids.add(id);
+            }
+        }
+        return ids;
+    }
+
+    // ------------------------------------------------------------------ OpenAI
+
+    private static JSONObject openAiBody(String model, String system, String userText, byte[] jpeg,
+                                         JSONArray tools, int maxTokens) throws Exception {
+        JSONArray content = new JSONArray();
+        content.put(new JSONObject().put("type", "text").put("text", userText));
+        if (jpeg != null) {
+            content.put(new JSONObject().put("type", "image_url").put("image_url", new JSONObject()
+                    .put("url", "data:image/jpeg;base64," + Base64.encodeToString(jpeg, Base64.NO_WRAP))));
+        }
+        JSONArray messages = new JSONArray()
+                .put(new JSONObject().put("role", "system").put("content", system))
+                .put(new JSONObject().put("role", "user").put("content", content));
+        JSONObject body = new JSONObject().put("model", model).put("messages", messages)
+                .put("max_tokens", maxTokens).put("temperature", 0.2);
+        if (tools != null) body.put("tools", tools).put("tool_choice", "auto");
+        return body;
+    }
+
+    private static Result parseOpenAi(JSONObject resp) throws Exception {
+        Result r = new Result();
+        JSONObject msg = resp.getJSONArray("choices").getJSONObject(0).getJSONObject("message");
+        r.text = msg.isNull("content") ? "" : msg.optString("content", "");
+        JSONArray calls = msg.optJSONArray("tool_calls");
+        if (calls != null) {
+            for (int i = 0; i < calls.length(); i++) {
+                JSONObject fn = calls.getJSONObject(i).getJSONObject("function");
+                String raw = fn.optString("arguments", "{}");
+                r.toolCalls.add(new ToolCall(fn.getString("name"),
+                        raw.trim().isEmpty() ? new JSONObject() : new JSONObject(raw)));
+            }
+        }
+        JSONObject usage = resp.optJSONObject("usage");
+        if (usage != null) {
+            r.promptTokens = usage.optInt("prompt_tokens");
+            r.completionTokens = usage.optInt("completion_tokens");
+        }
+        return r;
+    }
+
+    // ------------------------------------------------------------------ Anthropic
+
+    private static JSONObject anthropicBody(String model, String system, String userText, byte[] jpeg,
+                                            JSONArray tools, int maxTokens) throws Exception {
+        JSONArray content = new JSONArray();
+        if (jpeg != null) {
+            content.put(new JSONObject().put("type", "image").put("source", new JSONObject()
+                    .put("type", "base64").put("media_type", "image/jpeg")
+                    .put("data", Base64.encodeToString(jpeg, Base64.NO_WRAP))));
+        }
+        content.put(new JSONObject().put("type", "text").put("text", userText));
+        JSONObject body = new JSONObject().put("model", model).put("system", system)
+                .put("max_tokens", maxTokens)
+                .put("messages", new JSONArray().put(new JSONObject().put("role", "user").put("content", content)));
+        if (tools != null) {
+            JSONArray out = new JSONArray();
+            for (int i = 0; i < tools.length(); i++) {
+                JSONObject fn = tools.getJSONObject(i).getJSONObject("function");
+                out.put(new JSONObject().put("name", fn.getString("name"))
+                        .put("description", fn.optString("description"))
+                        .put("input_schema", fn.getJSONObject("parameters")));
+            }
+            body.put("tools", out);
+        }
+        return body;
+    }
+
+    private static Result parseAnthropic(JSONObject resp) throws Exception {
+        Result r = new Result();
+        JSONArray blocks = resp.getJSONArray("content");
+        StringBuilder text = new StringBuilder();
+        for (int i = 0; i < blocks.length(); i++) {
+            JSONObject b = blocks.getJSONObject(i);
+            String type = b.optString("type");
+            if ("text".equals(type)) text.append(b.optString("text"));
+            else if ("tool_use".equals(type)) {
+                r.toolCalls.add(new ToolCall(b.getString("name"), b.optJSONObject("input")));
+            }
+        }
+        r.text = text.toString();
+        JSONObject usage = resp.optJSONObject("usage");
+        if (usage != null) {
+            r.promptTokens = usage.optInt("input_tokens");
+            r.completionTokens = usage.optInt("output_tokens");
+        }
+        return r;
+    }
+
+    // ------------------------------------------------------------------ HTTP
+
+    private JSONObject post(String path, JSONObject body) throws Exception {
+        return request("POST", path, body);
+    }
+
+    private JSONObject request(String method, String path, JSONObject body) throws Exception {
+        IOException last = null;
+        for (int attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+            try {
+                return once(method, path, body);
+            } catch (HttpError e) {
+                last = e;
+                if (e.code != 429 && e.code < 500) throw e;
+            } catch (IOException e) {
+                last = e;
+            }
+            if (attempt < MAX_ATTEMPTS) Thread.sleep(1000L);
+        }
+        throw last;
+    }
+
+    private JSONObject once(String method, String path, JSONObject body) throws IOException {
+        HttpURLConnection conn = (HttpURLConnection) new URL(provider.baseUrl + path).openConnection();
+        try {
+            conn.setRequestMethod(method);
+            conn.setConnectTimeout(CONNECT_TIMEOUT_MS);
+            conn.setReadTimeout(READ_TIMEOUT_MS);
+            conn.setRequestProperty("Accept", "application/json");
+            if (apiKey != null && !apiKey.isEmpty()) {
+                if (ProviderStore.API_ANTHROPIC.equals(provider.api)) {
+                    conn.setRequestProperty("x-api-key", apiKey);
+                } else {
+                    conn.setRequestProperty("Authorization", "Bearer " + apiKey);
+                }
+            }
+            if (ProviderStore.API_ANTHROPIC.equals(provider.api)) {
+                conn.setRequestProperty("anthropic-version", "2023-06-01");
+            }
+            if (body != null) {
+                byte[] bytes = body.toString().getBytes(StandardCharsets.UTF_8);
+                conn.setDoOutput(true);
+                conn.setRequestProperty("Content-Type", "application/json");
+                conn.setFixedLengthStreamingMode(bytes.length);
+                try (OutputStream out = conn.getOutputStream()) {
+                    out.write(bytes);
+                }
+            }
+            int code = conn.getResponseCode();
+            InputStream in = code >= 400 ? conn.getErrorStream() : conn.getInputStream();
+            String text = in == null ? "" : readAll(in);
+            if (code >= 400) throw new HttpError(code, text);
+            try {
+                return new JSONObject(text);
+            } catch (Exception e) {
+                throw new IOException("Non-JSON response: " + (text.length() > 200 ? text.substring(0, 200) : text));
+            }
+        } finally {
+            conn.disconnect();
+        }
+    }
+
+    private static String readAll(InputStream in) throws IOException {
+        try (InputStream s = in) {
+            ByteArrayOutputStream buf = new ByteArrayOutputStream();
+            byte[] chunk = new byte[8192];
+            int n;
+            while ((n = s.read(chunk)) > 0) buf.write(chunk, 0, n);
+            return buf.toString("UTF-8");
+        }
+    }
+}
