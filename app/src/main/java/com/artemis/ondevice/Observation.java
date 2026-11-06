@@ -24,7 +24,7 @@ final class Observation {
     /** Longest screenshot side sent to the model. */
     static final int MAX_SIDE = 1024;
     static final int JPEG_QUALITY = 70;
-    static final int MAX_ELEMENTS = 120;
+    static final int MAX_ELEMENTS = 300;
     private static final int ERROR_INTERVAL_TOO_SHORT = 3;
 
     private static final ExecutorService SHOT_EXECUTOR = Executors.newSingleThreadExecutor();
@@ -44,6 +44,7 @@ final class Observation {
     int screenW, screenH;
     String packageName = "";
     final List<Element> elements = new ArrayList<>();
+    int droppedElements;
     long elapsedMs;
 
     static Observation capture(AgentAccessibilityService service) {
@@ -54,18 +55,25 @@ final class Observation {
         final AtomicReference<Bitmap> bmp = new AtomicReference<>();
         final AtomicInteger err = new AtomicInteger();
         final CountDownLatch latch = new CountDownLatch(1);
+        // The floating bubble must not appear in what the model sees.
+        FloatingBubble bubble = service.bubble();
+        if (bubble != null) bubble.hideForCapture();
         requestShot(service, bmp, err, latch, true);
 
         android.graphics.Rect screen = service.getSystemService(android.view.WindowManager.class)
                 .getMaximumWindowMetrics().getBounds();
         o.screenW = screen.width();
         o.screenH = screen.height();
-        o.elements.addAll(UiTree.collect(service, screen, MAX_ELEMENTS));
+        UiTree.Result tree = UiTree.collect(service, screen, MAX_ELEMENTS);
+        o.elements.addAll(tree.elements);
+        o.droppedElements = tree.dropped;
 
         try {
             latch.await(3000, TimeUnit.MILLISECONDS);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
+        } finally {
+            if (bubble != null) bubble.showAfterCapture();
         }
         Bitmap b = bmp.get();
         if (b != null) {
@@ -88,6 +96,9 @@ final class Observation {
             sb.append('[').append(i).append("] ").append(e.label).append(" | Bounds: [")
                     .append(nx(e.left)).append(',').append(ny(e.top)).append("][")
                     .append(nx(e.right)).append(',').append(ny(e.bottom)).append("]\n");
+        }
+        if (droppedElements > 0) {
+            sb.insert(0, "(" + droppedElements + " earlier elements, usually layers underneath, were left out to keep the list short.)\n");
         }
         return sb.toString();
     }

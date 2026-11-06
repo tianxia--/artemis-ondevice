@@ -10,27 +10,33 @@ import android.content.Intent;
 import android.content.pm.ServiceInfo;
 import android.os.IBinder;
 import android.os.PowerManager;
+import android.util.Log;
 
-/** Foreground service that owns one Flash run at a time. */
-public class AgentService extends Service {
+/**
+ * Foreground service that owns one run at a time. It builds the {@link RunRecord}, runs
+ * {@link FlashLoop} on a worker thread, publishes progress through {@link RunState} and
+ * saves the record to {@link RunStore} at the start and the end.
+ */
+public class AgentService extends Service implements RunState.Listener {
 
     static final String TAG = "ArtemisAgent";
     static final String ACTION_START = "com.artemis.ondevice.START";
     static final String ACTION_STOP = "com.artemis.ondevice.STOP";
     static final String EXTRA_TASK = "task";
-    static final String EXTRA_MAX_STEPS = "max_steps";
-    static final String EXTRA_SCREENSHOT = "screenshot";
 
     private static final String CHANNEL_ID = "artemis_agent_run";
+    private static final String DONE_CHANNEL_ID = "artemis_agent_done";
     private static final int NOTIFICATION_ID = 18890;
+    private static final int DONE_NOTIFICATION_ID = 18891;
+    private static final long START_SETTLE_MS = 600L;
 
     private volatile boolean stopRequested;
+    private volatile ChatClient client;
     private Thread worker;
 
-    static void start(Context ctx, String task, int maxSteps, boolean screenshot) {
+    static void start(Context ctx, String task) {
         ctx.startForegroundService(new Intent(ctx, AgentService.class).setAction(ACTION_START)
-                .putExtra(EXTRA_TASK, task).putExtra(EXTRA_MAX_STEPS, maxSteps)
-                .putExtra(EXTRA_SCREENSHOT, screenshot));
+                .putExtra(EXTRA_TASK, task));
     }
 
     static void stop(Context ctx) {
@@ -38,57 +44,85 @@ public class AgentService extends Service {
     }
 
     @Override
+    public void onCreate() {
+        super.onCreate();
+        NotificationManager nm = getSystemService(NotificationManager.class);
+        nm.createNotificationChannel(new NotificationChannel(CHANNEL_ID, getString(R.string.channel_running),
+                NotificationManager.IMPORTANCE_LOW));
+        nm.createNotificationChannel(new NotificationChannel(DONE_CHANNEL_ID, getString(R.string.channel_done),
+                NotificationManager.IMPORTANCE_DEFAULT));
+        RunState.subscribe(this);
+    }
+
+    @Override
+    public void onDestroy() {
+        RunState.unsubscribe(this);
+        super.onDestroy();
+    }
+
+    @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        startForeground(NOTIFICATION_ID, notification("Running task…"),
-                ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE);
+        startForeground(NOTIFICATION_ID, progressNotification(), ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE);
         String action = intent == null ? null : intent.getAction();
         if (ACTION_STOP.equals(action)) {
             stopRequested = true;
+            ChatClient c = client;
+            if (c != null) c.cancel();
             if (worker != null) worker.interrupt();
             if (worker == null || !worker.isAlive()) finish();
             return START_NOT_STICKY;
         }
         if (ACTION_START.equals(action)) {
-            if (worker != null && worker.isAlive()) {
-                RunLog.line("A task is already running; stop it first.");
-                return START_NOT_STICKY;
-            }
-            begin(intent.getStringExtra(EXTRA_TASK), intent.getIntExtra(EXTRA_MAX_STEPS, 20),
-                    intent.getBooleanExtra(EXTRA_SCREENSHOT, true));
+            if (worker != null && worker.isAlive()) return START_NOT_STICKY;
+            begin(intent.getStringExtra(EXTRA_TASK));
         }
         return START_NOT_STICKY;
     }
 
-    private void begin(final String task, final int maxSteps, final boolean screenshot) {
+    private void begin(final String task) {
         stopRequested = false;
-        RunLog.clear();
-        RunLog.setRunning(true);
+        final Context ctx = this;
+        ProviderStore.Active active = ProviderStore.getActive(ctx);
+        final ProviderStore.Provider provider = active == null ? null : ProviderStore.get(ctx, active.provider);
+        final RunRecord run = RunRecord.start(task, provider == null ? "" : provider.id,
+                active == null ? "" : active.model, AppSettings.maxSteps(ctx), AppSettings.screenshot(ctx));
+        RunState.begin(run);
         worker = new Thread(new Runnable() {
             @Override
             public void run() {
                 PowerManager pm = (PowerManager) getSystemService(POWER_SERVICE);
                 PowerManager.WakeLock lock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "artemis:agent");
-                lock.acquire(30 * 60 * 1000L);
+                lock.acquire(2 * 60 * 60 * 1000L);
                 try {
-                    ProviderStore.Active active = ProviderStore.getActive(AgentService.this);
-                    ProviderStore.Provider provider = active == null ? null : ProviderStore.get(AgentService.this, active.provider);
+                    save(run);
                     if (provider == null) {
-                        RunLog.line("No active model. Add a provider and pick a model first.");
+                        run.status = RunRecord.ERROR;
+                        run.answer = getString(R.string.error_no_model);
+                        run.endedAt = System.currentTimeMillis();
                         return;
                     }
-                    String key = ProviderStore.apiKey(AgentService.this, provider.id);
-                    RunLog.line("Task: " + task);
-                    RunLog.line("Model: " + provider.id + " / " + active.model + " (" + provider.api + ")"
-                            + ", max " + maxSteps + " steps, screenshot " + (screenshot ? "on" : "off"));
-                    new FlashLoop(new ChatClient(provider, key), active.model, task, maxSteps, screenshot,
-                            new FlashLoop.StopSignal() {
-                                @Override public boolean stopped() { return stopRequested; }
-                            }).run();
+                    String key = ProviderStore.apiKey(ctx, provider.id);
+                    // The screen that started the run is still animating away; don't capture it.
+                    Thread.sleep(START_SETTLE_MS);
+                    client = new ChatClient(provider, key);
+                    new FlashLoop(ctx, client, run, new FlashLoop.StopSignal() {
+                        @Override public boolean stopped() { return stopRequested; }
+                    }).run();
+                } catch (InterruptedException e) {
+                    run.status = RunRecord.STOPPED;
+                    run.answer = getString(R.string.stopped_by_you);
+                    run.endedAt = System.currentTimeMillis();
                 } catch (Exception e) {
-                    RunLog.line("Run failed: " + e.getClass().getSimpleName() + ": " + e.getMessage());
+                    run.status = RunRecord.ERROR;
+                    run.answer = e.getClass().getSimpleName() + ": " + e.getMessage();
+                    run.endedAt = System.currentTimeMillis();
                 } finally {
+                    client = null;
+                    save(run);
+                    RunStore.prune(ctx);
                     lock.release();
-                    RunLog.setRunning(false);
+                    RunState.end(run);
+                    notifyDone(run);
                     finish();
                 }
             }
@@ -96,28 +130,62 @@ public class AgentService extends Service {
         worker.start();
     }
 
+    private void save(RunRecord run) {
+        try {
+            RunStore.save(this, run);
+        } catch (Exception e) {
+            Log.w(TAG, "run not saved: " + e.getMessage());
+        }
+    }
+
     private void finish() {
         stopForeground(STOP_FOREGROUND_REMOVE);
         stopSelf();
     }
 
-    private Notification notification(String text) {
-        NotificationManager nm = getSystemService(NotificationManager.class);
-        nm.createNotificationChannel(new NotificationChannel(CHANNEL_ID, "Artemis agent run",
-                NotificationManager.IMPORTANCE_LOW));
-        PendingIntent open = PendingIntent.getActivity(this, 0,
-                new Intent(this, MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
-                PendingIntent.FLAG_IMMUTABLE);
+    @Override
+    public void onRunChanged() {
+        if (RunState.isRunning()) {
+            getSystemService(NotificationManager.class).notify(NOTIFICATION_ID, progressNotification());
+        }
+    }
+
+    private Notification progressNotification() {
+        RunRecord r = RunState.current();
+        String text = r == null ? getString(R.string.status_starting)
+                : getString(R.string.status_progress, r.steps.size() + 1, Format.phase(this, RunState.phase()));
         PendingIntent stop = PendingIntent.getService(this, 1,
                 new Intent(this, AgentService.class).setAction(ACTION_STOP), PendingIntent.FLAG_IMMUTABLE);
         return new Notification.Builder(this, CHANNEL_ID)
-                .setContentTitle("Artemis agent")
+                .setContentTitle(r == null ? getString(R.string.app_name) : FlashLoop.clip(r.task, 60))
                 .setContentText(text)
-                .setSmallIcon(android.R.drawable.ic_media_play)
-                .setContentIntent(open)
-                .addAction(new Notification.Action.Builder(null, "Stop", stop).build())
+                .setSmallIcon(R.drawable.ic_stat_agent)
+                .setContentIntent(openRun(r == null ? null : r.id))
+                .addAction(new Notification.Action.Builder(null, getString(R.string.action_stop), stop).build())
                 .setOngoing(true)
+                .setOnlyAlertOnce(true)
                 .build();
+    }
+
+    private void notifyDone(RunRecord r) {
+        Notification n = new Notification.Builder(this, DONE_CHANNEL_ID)
+                .setContentTitle(Format.status(this, r.status) + " · " + Format.duration(r.durationMs())
+                        + " · " + getString(R.string.n_steps, r.steps.size()))
+                .setContentText(r.answer.isEmpty() ? FlashLoop.clip(r.task, 80) : FlashLoop.clip(r.answer, 120))
+                .setStyle(new Notification.BigTextStyle().bigText(r.answer.isEmpty() ? r.task : r.answer))
+                .setSmallIcon(R.drawable.ic_stat_agent)
+                .setContentIntent(openRun(r.id))
+                .setAutoCancel(true)
+                .build();
+        getSystemService(NotificationManager.class).notify(DONE_NOTIFICATION_ID, n);
+    }
+
+    private PendingIntent openRun(String runId) {
+        Intent i = runId == null ? new Intent(this, MainActivity.class)
+                : new Intent(this, RunDetailActivity.class).putExtra(RunDetailActivity.EXTRA_RUN_ID, runId);
+        i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        return PendingIntent.getActivity(this, runId == null ? 0 : runId.hashCode(), i,
+                PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
     }
 
     @Override

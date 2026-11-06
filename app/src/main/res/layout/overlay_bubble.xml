@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="60dp"
+    android:layout_height="60dp"
+    android:padding="4dp"
+    android:contentDescription="@string/app_short">
+
+    <View
+        android:id="@+id/bubble_core"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_margin="3dp"
+        android:background="@drawable/bubble_core"
+        android:elevation="6dp" />
+
+    <ProgressBar
+        android:id="@+id/bubble_ring"
+        style="?android:attr/progressBarStyleLarge"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:elevation="7dp"
+        android:indeterminate="true"
+        android:indeterminateTint="#CCFFFFFF"
+        android:visibility="gone" />
+
+    <ImageView
+        android:id="@+id/bubble_icon"
+        android:layout_width="26dp"
+        android:layout_height="26dp"
+        android:layout_gravity="center"
+        android:elevation="8dp"
+        android:importantForAccessibility="no"
+        android:src="@drawable/ic_spark" />
+
+    <TextView
+        android:id="@+id/bubble_step"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:elevation="8dp"
+        android:textColor="#FFFFFF"
+        android:textSize="16sp"
+        android:textStyle="bold"
+        android:visibility="gone" />
+</FrameLayout>

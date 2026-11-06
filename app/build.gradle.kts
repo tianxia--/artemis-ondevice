@@ -26,4 +26,9 @@ android {
     }
 }
 
-// Platform APIs only (accessibility, Keystore, HttpURLConnection, org.json): no dependencies.
+dependencies {
+    // UI toolkit only. The agent core (accessibility, Keystore, HttpURLConnection, org.json)
+    // stays on platform APIs. Material 3 components need AppCompat; RecyclerView comes with it.
+    implementation("androidx.appcompat:appcompat:1.7.0")
+    implementation("com.google.android.material:material:1.12.0")
+}

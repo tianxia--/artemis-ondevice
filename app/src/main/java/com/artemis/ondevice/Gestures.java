@@ -27,6 +27,15 @@ final class Gestures {
                 .addStroke(new GestureDescription.StrokeDescription(path, 0L, 60L)).build(), timeoutMs);
     }
 
+    /** Press and hold (e.g. hold-to-record buttons); the finger lifts after {@code durationMs}. */
+    static boolean longPress(AccessibilityService s, float x, float y, long durationMs) {
+        Path path = new Path();
+        path.moveTo(x, y);
+        long d = Math.max(500L, Math.min(durationMs, 10_000L));
+        return dispatch(s, new GestureDescription.Builder()
+                .addStroke(new GestureDescription.StrokeDescription(path, 0L, d)).build(), d + 3000L);
+    }
+
     static boolean swipe(AccessibilityService s, float x1, float y1, float x2, float y2,
                          long durationMs, long timeoutMs) {
         Path path = new Path();

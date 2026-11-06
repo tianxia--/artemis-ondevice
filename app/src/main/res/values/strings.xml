@@ -1,5 +1,144 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Artemis On-Device</string>
-    <string name="accessibility_service_description">Lets the on-device Artemis agent read the screen, take screenshots and perform taps, swipes and text input for the task you start in the Artemis Agent app.</string>
+    <string name="app_short">Artemis</string>
+    <string name="accessibility_service_description">让手机上的 Artemis 智能体读取屏幕、截图，并为你在 Artemis 中启动的任务执行点击、滑动和输入。它不打开任何网络端口，只把截图和界面元素发给你配置的模型服务。</string>
+
+    <!-- Home -->
+    <string name="home_greeting">要我帮你在手机上做什么？</string>
+    <string name="task_hint">描述任务，例如：打开设置，告诉我电量</string>
+    <string name="action_start">开始执行</string>
+    <string name="action_stop">停止</string>
+    <string name="action_details">查看详情</string>
+    <string name="action_new_task">新任务</string>
+    <string name="action_rerun">再次运行</string>
+    <string name="action_settings">设置</string>
+    <string name="action_clear">清空</string>
+    <string name="action_enable">去开启</string>
+    <string name="action_add_model">添加模型</string>
+    <string name="suggest_battery">打开设置，告诉我电量</string>
+    <string name="suggest_wifi">打开设置，查看当前连接的 Wi-Fi</string>
+    <string name="suggest_storage">打开设置，告诉我剩余存储空间</string>
+    <string name="section_recent">最近任务</string>
+    <string name="section_overview">总览</string>
+    <string name="empty_history">还没有任务记录。输入一个任务开始吧。</string>
+    <string name="setup_title">还差一步</string>
+    <string name="setup_a11y">开启无障碍服务「Artemis On-Device」，让智能体可以看屏幕和操作手机</string>
+    <string name="setup_model">添加一个模型服务（OpenAI 兼容或 Anthropic）</string>
+    <string name="overview_runs">任务数</string>
+    <string name="overview_success">成功率</string>
+    <string name="overview_step">平均每步</string>
+    <string name="model_none">未选择模型</string>
+    <string name="live_title">正在执行</string>
+    <string name="confirm_clear_history">清空所有任务记录和截图？</string>
+    <string name="toast_enter_task">请先输入任务</string>
+    <string name="toast_running">已有任务在执行</string>
+
+    <!-- Status -->
+    <string name="status_running">执行中</string>
+    <string name="status_completed">已完成</string>
+    <string name="status_failed">未完成</string>
+    <string name="status_stopped">已停止</string>
+    <string name="status_error">出错</string>
+    <string name="status_starting">准备中…</string>
+    <string name="status_progress">第 %1$d 步 · %2$s</string>
+    <string name="status_paused">第 %d 步 · 已暂停（关闭面板继续）</string>
+    <string name="phase_observing">读取屏幕</string>
+    <string name="phase_thinking">模型思考</string>
+    <string name="phase_acting">执行动作</string>
+    <string name="phase_idle">空闲</string>
+    <string name="n_steps">%d 步</string>
+    <string name="no_answer">（没有回答）</string>
+    <string name="stopped_by_you">已手动停止。</string>
+    <string name="channel_running">任务执行中</string>
+    <string name="channel_done">任务完成</string>
+    <string name="error_no_model">还没有选择模型。请在设置中添加模型服务。</string>
+
+    <!-- Bubble -->
+    <string name="bubble_idle_hint">点「新任务」输入要做的事；执行时可以随时在这里查看进度或停止。</string>
+    <string name="bubble_first_step">正在读取屏幕…</string>
+    <string name="bubble_meta">%1$s · %2$d 步 · %3$s tokens</string>
+
+    <!-- Run detail -->
+    <string name="detail_title">任务详情</string>
+    <string name="detail_answer">结果</string>
+    <string name="detail_metrics">指标</string>
+    <string name="detail_timeline">每步耗时</string>
+    <string name="detail_steps">执行过程</string>
+    <string name="metric_total">总耗时</string>
+    <string name="metric_steps">步数</string>
+    <string name="metric_avg_step">平均每步</string>
+    <string name="metric_median_step">每步中位数</string>
+    <string name="metric_llm">模型 中位 / P90</string>
+    <string name="metric_llm_share">模型耗时占比</string>
+    <string name="metric_obs">截图+界面树 平均</string>
+    <string name="metric_act">执行动作 平均</string>
+    <string name="metric_tokens">Tokens 输入 / 输出</string>
+    <string name="metric_tokens_total">Tokens 合计</string>
+    <string name="metric_failed_actions">失败动作</string>
+    <string name="metric_llm_max">模型最慢一次</string>
+    <string name="step_short">第 %d 步</string>
+    <string name="legend_obs">读屏</string>
+    <string name="legend_llm">模型</string>
+    <string name="legend_act">动作</string>
+    <string name="step_title">第 %1$d 步 · T+%2$s</string>
+    <string name="step_timing">读屏 %1$s · 模型 %2$s · 动作 %3$s · ↑%4$s ↓%5$s</string>
+    <string name="copied">已复制</string>
+    <string name="action_copy">复制结果</string>
+    <string name="action_delete">删除记录</string>
+    <string name="confirm_delete_run">删除这条任务记录？</string>
+    <string name="run_not_found">找不到这条记录</string>
+
+    <!-- Settings -->
+    <string name="settings_title">设置</string>
+    <string name="section_models">模型服务</string>
+    <string name="section_active_model">当前使用</string>
+    <string name="section_run">执行</string>
+    <string name="section_permissions">权限</string>
+    <string name="section_data">数据</string>
+    <string name="label_provider">服务</string>
+    <string name="label_model">模型</string>
+    <string name="add_provider">添加模型服务</string>
+    <string name="max_steps">最大步数</string>
+    <string name="max_steps_hint">0 表示不限（默认），可以随时停止</string>
+    <string name="setting_screenshot">发送截图</string>
+    <string name="setting_screenshot_hint">关闭后只发送界面元素列表（模型不支持图片时使用）</string>
+    <string name="setting_bubble">悬浮球</string>
+    <string name="setting_bubble_hint">在任意界面显示进度、停止任务、发起新任务</string>
+    <string name="perm_a11y">无障碍服务</string>
+    <string name="perm_on">已开启</string>
+    <string name="perm_off">未开启</string>
+    <string name="clear_history">清空任务记录</string>
+    <string name="n_models">%d 个模型</string>
+    <string name="badge_active">使用中</string>
+    <string name="key_stored">已保存密钥</string>
+    <string name="key_missing">未设置密钥</string>
+
+    <!-- Provider edit -->
+    <string name="provider_add_title">添加模型服务</string>
+    <string name="provider_edit_title">编辑模型服务</string>
+    <string name="preset">预设</string>
+    <string name="preset_custom">自定义（OpenAI 兼容）</string>
+    <string name="provider_id">ID（小写字母、数字、- 或 _）</string>
+    <string name="provider_name">显示名称</string>
+    <string name="base_url">Base URL（例如 https://example.com/v1）</string>
+    <string name="api_type">接口类型</string>
+    <string name="api_key">API Key</string>
+    <string name="api_key_keep">API Key（已保存，留空则不修改）</string>
+    <string name="paste">粘贴</string>
+    <string name="clipboard_empty">剪贴板是空的</string>
+    <string name="models">模型</string>
+    <string name="model_add_hint">输入模型 ID 后按回车添加</string>
+    <string name="fetch_models">从服务获取</string>
+    <string name="test_connection">测试连接</string>
+    <string name="testing">正在测试…</string>
+    <string name="fetching">正在获取…</string>
+    <string name="save">保存</string>
+    <string name="delete">删除</string>
+    <string name="cancel">取消</string>
+    <string name="confirm_delete_provider">删除 %s 和它保存的密钥？</string>
+    <string name="fetched_models">获取到 %d 个模型</string>
+    <string name="need_model">至少添加一个模型</string>
+    <string name="test_ok">连接正常 · %1$s · %2$d ms</string>
+    <string name="test_failed">连接失败：%s</string>
 </resources>

@@ -1,149 +1,120 @@
 package com.artemis.ondevice;
 
 import android.Manifest;
-import android.app.Activity;
-import android.app.AlertDialog;
-import android.content.ClipData;
-import android.content.ClipboardManager;
 import android.content.Intent;
-import android.graphics.Typeface;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.provider.Settings;
-import android.text.InputType;
+import android.text.TextUtils;
+import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.AdapterView;
-import android.widget.ArrayAdapter;
-import android.widget.Button;
-import android.widget.CheckBox;
-import android.widget.EditText;
-import android.widget.LinearLayout;
-import android.widget.ScrollView;
-import android.widget.Spinner;
+import android.view.inputmethod.InputMethodManager;
+import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.annotation.NonNull;
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
+
+import com.google.android.material.button.MaterialButton;
+import com.google.android.material.chip.Chip;
+import com.google.android.material.chip.ChipGroup;
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
+import com.google.android.material.textfield.TextInputEditText;
+
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
-/**
- * Task box, provider / model selection, Start/Stop
- * and the live step log. Views are built in code to keep the module resource-free.
- */
-public class MainActivity extends Activity implements RunLog.Listener {
+/** Home: setup checklist, task composer, live run, overview metrics and recent runs. */
+public class MainActivity extends AppCompatActivity implements RunState.Listener {
 
-    private TextView a11yStatus;
-    private Spinner providerSpinner;
-    private Spinner modelSpinner;
-    private EditText taskInput;
-    private EditText maxStepsInput;
-    private CheckBox screenshotBox;
-    private Button startStop;
-    private TextView logView;
-    private ScrollView logScroll;
-    private boolean suppressSelection;
+    static final String EXTRA_FOCUS_TASK = "focus_task";
+
+    private final ExecutorService io = Executors.newSingleThreadExecutor();
+    private final Handler main = new Handler(Looper.getMainLooper());
+    private final RunAdapter adapter = new RunAdapter();
+    private TextInputEditText taskInput;
+    private Chip modelChip;
+    private View setupCard, setupA11y, setupModel, composerCard, liveCard, emptyHistory;
+    private TextView liveStatus, liveElapsed, liveTask, liveLast;
+    private String lastRenderedRunEnd;
+
+    private final Runnable tick = new Runnable() {
+        @Override public void run() {
+            renderLive();
+            if (RunState.isRunning()) main.postDelayed(this, 1000);
+        }
+    };
 
     @Override
     protected void onCreate(Bundle state) {
         super.onCreate(state);
-        int pad = dp(12);
-        LinearLayout root = new LinearLayout(this);
-        root.setOrientation(LinearLayout.VERTICAL);
-        // targetSdk 35 is edge-to-edge: pad by the system bars so nothing hides under them.
-        final int basePad = pad;
-        root.setOnApplyWindowInsetsListener(new View.OnApplyWindowInsetsListener() {
-            @Override public android.view.WindowInsets onApplyWindowInsets(View v, android.view.WindowInsets in) {
-                android.graphics.Insets bars = in.getInsets(
-                        android.view.WindowInsets.Type.systemBars() | android.view.WindowInsets.Type.ime());
-                v.setPadding(basePad, basePad + bars.top, basePad, basePad + bars.bottom);
-                return in;
-            }
+        setContentView(R.layout.activity_main);
+
+        com.google.android.material.appbar.MaterialToolbar toolbar = findViewById(R.id.toolbar);
+        toolbar.setOnMenuItemClickListener(item -> {
+            startActivity(new Intent(this, SettingsActivity.class));
+            return true;
         });
 
-        a11yStatus = new TextView(this);
-        Button enableA11y = button("Accessibility settings", new View.OnClickListener() {
-            @Override public void onClick(View v) {
-                startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS));
-            }
+        taskInput = findViewById(R.id.task_input);
+        modelChip = findViewById(R.id.model_chip);
+        setupCard = findViewById(R.id.setup_card);
+        setupA11y = findViewById(R.id.setup_a11y);
+        setupModel = findViewById(R.id.setup_model);
+        composerCard = findViewById(R.id.composer_card);
+        liveCard = findViewById(R.id.live_card);
+        liveStatus = findViewById(R.id.live_status);
+        liveElapsed = findViewById(R.id.live_elapsed);
+        liveTask = findViewById(R.id.live_task);
+        liveLast = findViewById(R.id.live_last);
+        emptyHistory = findViewById(R.id.empty_history);
+
+        modelChip.setOnClickListener(v -> startActivity(new Intent(this, SettingsActivity.class)));
+        findViewById(R.id.setup_a11y_button).setOnClickListener(
+                v -> startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)));
+        findViewById(R.id.setup_model_button).setOnClickListener(
+                v -> startActivity(new Intent(this, ProviderEditActivity.class)));
+        findViewById(R.id.start_button).setOnClickListener(v -> start());
+        findViewById(R.id.live_stop).setOnClickListener(v -> AgentService.stop(this));
+        findViewById(R.id.live_details).setOnClickListener(v -> {
+            RunRecord r = RunState.current();
+            if (r != null) openRun(r.id);
         });
-        root.addView(row(a11yStatus, enableA11y));
+        findViewById(R.id.clear_history).setOnClickListener(v -> new MaterialAlertDialogBuilder(this)
+                .setMessage(R.string.confirm_clear_history)
+                .setPositiveButton(R.string.action_clear, (d, w) -> io.execute(() -> {
+                    RunStore.clear(this);
+                    main.post(this::loadHistory);
+                }))
+                .setNegativeButton(R.string.cancel, null)
+                .show());
 
-        providerSpinner = new Spinner(this);
-        modelSpinner = new Spinner(this);
-        root.addView(label("Provider"));
-        root.addView(providerSpinner);
-        root.addView(label("Model"));
-        root.addView(modelSpinner);
-        root.addView(row(
-                button("Add provider", new View.OnClickListener() {
-                    @Override public void onClick(View v) { editProvider(null); }
-                }),
-                button("Edit", new View.OnClickListener() {
-                    @Override public void onClick(View v) {
-                        ProviderStore.Provider p = selectedProvider();
-                        if (p != null) editProvider(p);
-                    }
-                }),
-                button("Delete", new View.OnClickListener() {
-                    @Override public void onClick(View v) { deleteProvider(); }
-                })));
-        root.addView(row(
-                button("Fetch models", new View.OnClickListener() {
-                    @Override public void onClick(View v) { fetchModels(); }
-                }),
-                button("Test", new View.OnClickListener() {
-                    @Override public void onClick(View v) { testConnection(); }
-                })));
+        ChipGroup suggestions = findViewById(R.id.suggestions);
+        for (int res : new int[]{R.string.suggest_battery, R.string.suggest_wifi, R.string.suggest_storage}) {
+            Chip c = new Chip(this);
+            c.setText(res);
+            c.setOnClickListener(v -> {
+                taskInput.setText(((Chip) v).getText());
+                taskInput.setSelection(taskInput.length());
+            });
+            suggestions.addView(c);
+        }
 
-        root.addView(label("Task"));
-        taskInput = new EditText(this);
-        taskInput.setHint("e.g. Open Settings and tell me the battery level");
-        taskInput.setMinLines(2);
-        root.addView(taskInput);
-
-        maxStepsInput = new EditText(this);
-        maxStepsInput.setInputType(InputType.TYPE_CLASS_NUMBER);
-        maxStepsInput.setText("20");
-        screenshotBox = new CheckBox(this);
-        screenshotBox.setText("Screenshot");
-        screenshotBox.setChecked(true);
-        startStop = button("Start", new View.OnClickListener() {
-            @Override public void onClick(View v) { startOrStop(); }
-        });
-        TextView stepsLabel = label("Max steps");
-        root.addView(row(stepsLabel, maxStepsInput, screenshotBox, startStop));
-
-        logView = new TextView(this);
-        logView.setTypeface(Typeface.MONOSPACE);
-        logView.setTextSize(11);
-        logView.setTextIsSelectable(true);
-        logScroll = new ScrollView(this);
-        logScroll.addView(logView);
-        root.addView(logScroll, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
-
-        setContentView(root);
-
-        providerSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
-            @Override public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-                if (!suppressSelection) refreshModels(null);
-            }
-            @Override public void onNothingSelected(AdapterView<?> parent) {}
-        });
-        modelSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
-            @Override public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-                if (suppressSelection) return;
-                ProviderStore.Provider p = selectedProvider();
-                Object m = modelSpinner.getSelectedItem();
-                if (p != null && m != null) setActive(p.id, m.toString());
-            }
-            @Override public void onNothingSelected(AdapterView<?> parent) {}
-        });
+        RecyclerView list = findViewById(R.id.history);
+        list.setLayoutManager(new LinearLayoutManager(this));
+        list.setAdapter(adapter);
 
         String task = getIntent().getStringExtra(AgentService.EXTRA_TASK);
         if (task != null) taskInput.setText(task);
         requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, 1);
-        refreshProviders();
+        handleFocus(getIntent());
     }
 
     @Override
@@ -151,321 +122,187 @@ public class MainActivity extends Activity implements RunLog.Listener {
         super.onNewIntent(intent);
         String task = intent.getStringExtra(AgentService.EXTRA_TASK);
         if (task != null) taskInput.setText(task);
+        handleFocus(intent);
+    }
+
+    private void handleFocus(Intent intent) {
+        if (!intent.getBooleanExtra(EXTRA_FOCUS_TASK, false)) return;
+        taskInput.requestFocus();
+        taskInput.postDelayed(() -> getSystemService(InputMethodManager.class)
+                .showSoftInput(taskInput, InputMethodManager.SHOW_IMPLICIT), 200);
     }
 
     @Override
     protected void onResume() {
         super.onResume();
-        a11yStatus.setText(AgentAccessibilityService.get() != null
-                ? "Accessibility: enabled" : "Accessibility: OFF — enable \"Artemis On-Device\"");
-        RunLog.setListener(this);
+        renderSetup();
+        RunState.subscribe(this);
+        loadHistory();
     }
 
     @Override
     protected void onPause() {
-        RunLog.setListener(null);
+        RunState.unsubscribe(this);
+        main.removeCallbacks(tick);
         super.onPause();
     }
 
     @Override
-    public void onLogChanged(String fullText, boolean running) {
-        logView.setText(fullText);
-        startStop.setText(running ? "Stop" : "Start");
-        logScroll.post(new Runnable() {
-            @Override public void run() { logScroll.fullScroll(View.FOCUS_DOWN); }
-        });
+    protected void onDestroy() {
+        io.shutdown();
+        super.onDestroy();
     }
 
-    // ------------------------------------------------------------------ run
+    @Override
+    public void onRunChanged() {
+        renderLive();
+        main.removeCallbacks(tick);
+        if (RunState.isRunning()) main.postDelayed(tick, 1000);
+        // Refresh the list once when a run ends.
+        RunRecord r = RunState.current();
+        if (r != null && !r.isRunning() && !r.id.equals(lastRenderedRunEnd)) {
+            lastRenderedRunEnd = r.id;
+            loadHistory();
+        }
+    }
 
-    private void startOrStop() {
-        if (RunLog.isRunning()) {
-            AgentService.stop(this);
+    // ------------------------------------------------------------------ actions
+
+    private void start() {
+        String task = taskInput.getText() == null ? "" : taskInput.getText().toString().trim();
+        if (task.isEmpty()) {
+            Toast.makeText(this, R.string.toast_enter_task, Toast.LENGTH_SHORT).show();
             return;
         }
-        String task = taskInput.getText().toString().trim();
-        if (task.isEmpty()) { toast("Enter a task"); return; }
-        if (AgentAccessibilityService.get() == null) { toast("Enable the Artemis On-Device accessibility service first"); return; }
-        if (ProviderStore.getActive(this) == null) { toast("Add a provider and pick a model first"); return; }
-        int maxSteps;
-        try {
-            maxSteps = Math.max(1, Math.min(100, Integer.parseInt(maxStepsInput.getText().toString().trim())));
-        } catch (NumberFormatException e) {
-            maxSteps = 20;
+        if (RunState.isRunning()) {
+            Toast.makeText(this, R.string.toast_running, Toast.LENGTH_SHORT).show();
+            return;
         }
-        AgentService.start(this, task, maxSteps, screenshotBox.isChecked());
+        if (AgentAccessibilityService.get() == null) {
+            startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS));
+            return;
+        }
+        if (ProviderStore.getActive(this) == null) {
+            startActivity(new Intent(this, ProviderEditActivity.class));
+            return;
+        }
+        getSystemService(InputMethodManager.class).hideSoftInputFromWindow(taskInput.getWindowToken(), 0);
+        taskInput.setText("");
+        AgentService.start(this, task);
+        // With the bubble on, step aside so the agent works on the phone and the bubble shows progress.
+        if (AppSettings.bubble(this)) moveTaskToBack(true);
     }
 
-    // ------------------------------------------------------------------ providers
-
-    private ProviderStore.Provider selectedProvider() {
-        Object p = providerSpinner.getSelectedItem();
-        return p instanceof ProviderStore.Provider ? (ProviderStore.Provider) p : null;
+    private void openRun(String id) {
+        startActivity(new Intent(this, RunDetailActivity.class).putExtra(RunDetailActivity.EXTRA_RUN_ID, id));
     }
 
-    private void refreshProviders() {
-        List<ProviderStore.Provider> providers;
-        try {
-            providers = ProviderStore.list(this);
-        } catch (IllegalStateException e) {
-            toast(e.getMessage());
-            providers = new ArrayList<>();
-        }
+    // ------------------------------------------------------------------ rendering
+
+    private void renderSetup() {
+        boolean a11y = AgentAccessibilityService.get() != null;
         ProviderStore.Active active = ProviderStore.getActive(this);
-        suppressSelection = true;
-        providerSpinner.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, providers));
-        for (int i = 0; i < providers.size(); i++) {
-            if (active != null && providers.get(i).id.equals(active.provider)) providerSpinner.setSelection(i);
-        }
-        suppressSelection = false;
-        refreshModels(active);
+        setupA11y.setVisibility(a11y ? View.GONE : View.VISIBLE);
+        setupModel.setVisibility(active != null ? View.GONE : View.VISIBLE);
+        setupCard.setVisibility(a11y && active != null ? View.GONE : View.VISIBLE);
+        modelChip.setText(active == null ? getString(R.string.model_none) : active.model + " · " + active.provider);
     }
 
-    private void refreshModels(ProviderStore.Active active) {
-        ProviderStore.Provider p = selectedProvider();
-        List<String> ids = new ArrayList<>();
-        if (p != null) for (ProviderStore.ModelSpec m : p.models) ids.add(m.id);
-        if (active == null) active = ProviderStore.getActive(this);
-        suppressSelection = true;
-        modelSpinner.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, ids));
-        int sel = 0;
-        for (int i = 0; i < ids.size(); i++) {
-            if (active != null && p != null && p.id.equals(active.provider) && ids.get(i).equals(active.model)) sel = i;
-        }
-        if (!ids.isEmpty()) modelSpinner.setSelection(sel);
-        suppressSelection = false;
-        if (p != null && !ids.isEmpty()) setActive(p.id, ids.get(sel));
+    private void renderLive() {
+        RunRecord r = RunState.current();
+        boolean running = r != null && r.isRunning();
+        liveCard.setVisibility(running ? View.VISIBLE : View.GONE);
+        composerCard.setVisibility(running ? View.GONE : View.VISIBLE);
+        if (!running) return;
+        liveStatus.setText(getString(R.string.status_progress, r.steps.size() + 1, Format.phase(this, RunState.phase())));
+        liveElapsed.setText(Format.duration(r.durationMs()));
+        liveTask.setText(r.task);
+        RunRecord.Step last = r.lastStep();
+        liveLast.setText(last == null ? getString(R.string.bubble_first_step)
+                : last.actions.isEmpty() ? FlashLoop.clip(last.reasoning, 200) : TextUtils.join("\n", last.actions));
     }
 
-    private void setActive(String provider, String model) {
-        try {
-            ProviderStore.setActive(this, provider, model);
-        } catch (Exception e) {
-            toast("Could not save: " + e.getMessage());
-        }
-    }
-
-    private void editProvider(final ProviderStore.Provider existing) {
-        LinearLayout form = new LinearLayout(this);
-        form.setOrientation(LinearLayout.VERTICAL);
-        form.setPadding(dp(16), dp(8), dp(16), 0);
-
-        final Map<String, ProviderStore.Provider> presets = ProviderStore.presets();
-        final List<String> presetLabels = new ArrayList<>();
-        presetLabels.add("Custom endpoint");
-        presetLabels.addAll(presets.keySet());
-        final Spinner presetSpinner = new Spinner(this);
-        presetSpinner.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, presetLabels));
-        final EditText id = field(form, "Provider id (e.g. my-llm)", false);
-        final EditText name = field(form, "Display name", false);
-        final EditText url = field(form, "Base URL (e.g. https://example.com/v1)", false);
-        final Spinner api = new Spinner(this);
-        api.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, ProviderStore.API_TYPES));
-        final EditText key = field(form, existing != null && ProviderStore.hasApiKey(this, existing.id)
-                ? "API key (stored; leave blank to keep)" : "API key", true);
-        // Some keyboards (Gboard) hide clipboard paste in password fields; read the clipboard directly.
-        form.addView(button("Paste API key from clipboard", new View.OnClickListener() {
-            @Override public void onClick(View v) {
-                ClipboardManager cm = (ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
-                ClipData clip = cm.getPrimaryClip();
-                CharSequence text = clip != null && clip.getItemCount() > 0
-                        ? clip.getItemAt(0).coerceToText(MainActivity.this) : null;
-                if (text == null || text.toString().trim().isEmpty()) { toast("Clipboard is empty"); return; }
-                key.setText(text.toString().trim());
-                key.setSelection(key.length());
-            }
-        }));
-        final EditText models = field(form, "Models, comma-separated (or Fetch later)", false);
-        form.addView(api, 3);
-        if (existing == null) form.addView(presetSpinner, 0);
-
-        if (existing != null) {
-            id.setText(existing.id);
-            id.setEnabled(false);
-            name.setText(existing.name);
-            url.setText(existing.baseUrl);
-            api.setSelection(ProviderStore.API_ANTHROPIC.equals(existing.api) ? 1 : 0);
-            models.setText(joinIds(existing.models));
-        }
-        presetSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
-            @Override public void onItemSelected(AdapterView<?> parent, View view, int position, long rowId) {
-                if (position == 0) return;
-                ProviderStore.Provider p = presets.get(presetLabels.get(position));
-                id.setText(p.id);
-                name.setText(p.name);
-                url.setText(p.baseUrl);
-                api.setSelection(ProviderStore.API_ANTHROPIC.equals(p.api) ? 1 : 0);
-                models.setText(joinIds(p.models));
-            }
-            @Override public void onNothingSelected(AdapterView<?> parent) {}
-        });
-
-        final AlertDialog dialog = new AlertDialog.Builder(this)
-                .setTitle(existing == null ? "Add provider" : "Edit provider")
-                .setView(wrapScroll(form))
-                .setPositiveButton("Save", null)
-                .setNegativeButton("Cancel", null)
-                .create();
-        dialog.setOnShowListener(new android.content.DialogInterface.OnShowListener() {
-            @Override public void onShow(android.content.DialogInterface d) {
-                dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(new View.OnClickListener() {
-                    @Override public void onClick(View v) {
-                        try {
-                            ProviderStore.Provider p = new ProviderStore.Provider();
-                            p.id = ProviderStore.normalizeId(id.getText().toString());
-                            p.name = name.getText().toString().trim();
-                            p.baseUrl = ProviderStore.normalizeBaseUrl(url.getText().toString());
-                            p.api = api.getSelectedItem().toString();
-                            for (String m : models.getText().toString().split(",")) {
-                                String mid = m.trim();
-                                if (mid.isEmpty()) continue;
-                                ProviderStore.ModelSpec known = existing != null ? existing.model(mid) : null;
-                                p.models.add(known != null ? known : new ProviderStore.ModelSpec(mid));
-                            }
-                            ProviderStore.upsert(MainActivity.this, p, key.getText().toString());
-                            if (!p.models.isEmpty() && ProviderStore.getActive(MainActivity.this) == null) {
-                                ProviderStore.setActive(MainActivity.this, p.id, p.models.get(0).id);
-                            }
-                            dialog.dismiss();
-                            refreshProviders();
-                        } catch (Exception e) {
-                            toast(e.getMessage());
-                        }
-                    }
-                });
-            }
-        });
-        dialog.show();
-    }
-
-    private void deleteProvider() {
-        final ProviderStore.Provider p = selectedProvider();
-        if (p == null) return;
-        new AlertDialog.Builder(this)
-                .setMessage("Delete provider " + p.id + " and its stored API key?")
-                .setPositiveButton("Delete", new android.content.DialogInterface.OnClickListener() {
-                    @Override public void onClick(android.content.DialogInterface d, int w) {
-                        try {
-                            ProviderStore.remove(MainActivity.this, p.id);
-                        } catch (Exception e) {
-                            toast(e.getMessage());
-                        }
-                        refreshProviders();
-                    }
-                })
-                .setNegativeButton("Cancel", null)
-                .show();
-    }
-
-    private void fetchModels() {
-        final ProviderStore.Provider p = selectedProvider();
-        if (p == null) { toast("Add a provider first"); return; }
-        background("Fetching models…", new Job() {
-            @Override public String run() throws Exception {
-                List<String> ids = new ChatClient(p, ProviderStore.apiKey(MainActivity.this, p.id)).fetchModels();
-                List<ProviderStore.ModelSpec> merged = new ArrayList<>();
-                for (String mid : ids) {
-                    ProviderStore.ModelSpec known = p.model(mid);
-                    merged.add(known != null ? known : new ProviderStore.ModelSpec(mid));
-                }
-                p.models = merged;
-                ProviderStore.upsert(MainActivity.this, p, null);
-                return ids.size() + " models";
-            }
+    private void loadHistory() {
+        io.execute(() -> {
+            List<RunRecord> runs = RunStore.list(this);
+            main.post(() -> {
+                if (isDestroyed()) return;
+                adapter.submit(runs);
+                emptyHistory.setVisibility(runs.isEmpty() ? View.VISIBLE : View.GONE);
+                findViewById(R.id.clear_history).setVisibility(runs.isEmpty() ? View.GONE : View.VISIBLE);
+                renderOverview(runs);
+            });
         });
     }
 
-    private void testConnection() {
-        final ProviderStore.Provider p = selectedProvider();
-        final Object m = modelSpinner.getSelectedItem();
-        if (p == null || m == null) { toast("Pick a provider and model first"); return; }
-        background("Testing…", new Job() {
-            @Override public String run() throws Exception {
-                ChatClient.Result r = new ChatClient(p, ProviderStore.apiKey(MainActivity.this, p.id))
-                        .complete(m.toString(), "You are a connectivity probe.",
-                                "Reply with the single word: pong", null, null, 64);
-                return m + ": " + r.text.trim() + " (" + r.latencyMs + " ms)";
-            }
-        });
-    }
-
-    private interface Job {
-        String run() throws Exception;
-    }
-
-    private void background(String startMsg, final Job job) {
-        toast(startMsg);
-        new Thread(new Runnable() {
-            @Override public void run() {
-                String msg;
-                try {
-                    msg = job.run();
-                } catch (Exception e) {
-                    msg = e.getClass().getSimpleName() + ": " + e.getMessage();
-                }
-                final String out = msg;
-                runOnUiThread(new Runnable() {
-                    @Override public void run() {
-                        RunLog.line(out);
-                        refreshProviders();
-                    }
-                });
-            }
-        }).start();
-    }
-
-    // ------------------------------------------------------------------ view helpers
-
-    private static String joinIds(List<ProviderStore.ModelSpec> ms) {
-        StringBuilder sb = new StringBuilder();
-        for (ProviderStore.ModelSpec m : ms) sb.append(sb.length() > 0 ? "," : "").append(m.id);
-        return sb.toString();
-    }
-
-    private EditText field(LinearLayout parent, String hint, boolean secret) {
-        EditText e = new EditText(this);
-        e.setHint(hint);
-        e.setSingleLine(true);
-        if (secret) e.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
-        parent.addView(e);
-        return e;
-    }
-
-    private ScrollView wrapScroll(View v) {
-        ScrollView s = new ScrollView(this);
-        s.addView(v);
-        return s;
-    }
-
-    private TextView label(String text) {
-        TextView t = new TextView(this);
-        t.setText(text);
-        t.setPadding(0, dp(6), dp(6), 0);
-        return t;
-    }
-
-    private Button button(String text, View.OnClickListener l) {
-        Button b = new Button(this);
-        b.setText(text);
-        b.setAllCaps(false);
-        b.setOnClickListener(l);
-        return b;
-    }
-
-    private LinearLayout row(View... views) {
-        LinearLayout r = new LinearLayout(this);
-        r.setOrientation(LinearLayout.HORIZONTAL);
-        for (View v : views) {
-            r.addView(v, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+    private void renderOverview(List<RunRecord> runs) {
+        int done = 0, ok = 0, steps = 0;
+        long time = 0;
+        for (RunRecord r : runs) {
+            if (r.isRunning()) continue;
+            done++;
+            if (RunRecord.COMPLETED.equals(r.status)) ok++;
+            steps += r.steps.size();
+            time += r.durationMs();
         }
-        return r;
+        metric(R.id.stat_runs, String.valueOf(done), R.string.overview_runs);
+        metric(R.id.stat_success, done == 0 ? "–" : Math.round(100f * ok / done) + "%", R.string.overview_success);
+        metric(R.id.stat_step, steps == 0 ? "–" : Format.duration(time / steps), R.string.overview_step);
     }
 
-    private int dp(int v) {
-        return Math.round(v * getResources().getDisplayMetrics().density);
+    private void metric(int id, String value, int label) {
+        View v = findViewById(id);
+        ((TextView) v.findViewById(R.id.metric_value)).setText(value);
+        ((TextView) v.findViewById(R.id.metric_label)).setText(label);
     }
 
-    private void toast(String s) {
-        Toast.makeText(this, s, Toast.LENGTH_LONG).show();
+    // ------------------------------------------------------------------ list
+
+    private final class RunAdapter extends RecyclerView.Adapter<RunAdapter.Holder> {
+        private final List<RunRecord> items = new ArrayList<>();
+
+        void submit(List<RunRecord> runs) {
+            items.clear();
+            items.addAll(runs);
+            notifyDataSetChanged();
+        }
+
+        @NonNull
+        @Override
+        public Holder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+            return new Holder(LayoutInflater.from(parent.getContext()).inflate(R.layout.item_run, parent, false));
+        }
+
+        @Override
+        public void onBindViewHolder(@NonNull Holder h, int position) {
+            RunRecord r = items.get(position);
+            h.task.setText(r.task);
+            h.answer.setText(r.answer.isEmpty() ? Format.status(MainActivity.this, r.status) : r.answer);
+            h.meta.setText(Format.when(MainActivity.this, r.startedAt) + " · " + Format.duration(r.durationMs())
+                    + " · " + getString(R.string.n_steps, r.steps.size())
+                    + " · " + Format.tokens(r.promptTokens() + r.completionTokens()) + " tok");
+            Format.badge(h.badge, h.icon, r.status);
+            h.itemView.setOnClickListener(v -> openRun(r.id));
+        }
+
+        @Override
+        public int getItemCount() {
+            return items.size();
+        }
+
+        final class Holder extends RecyclerView.ViewHolder {
+            final TextView task, answer, meta;
+            final View badge;
+            final ImageView icon;
+
+            Holder(View v) {
+                super(v);
+                task = v.findViewById(R.id.run_task);
+                answer = v.findViewById(R.id.run_answer);
+                meta = v.findViewById(R.id.run_meta);
+                badge = v.findViewById(R.id.run_badge);
+                icon = v.findViewById(R.id.run_icon);
+            }
+        }
     }
 }

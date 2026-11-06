@@ -14,6 +14,11 @@ import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Minimal chat client for the two supported provider API types:
@@ -26,9 +31,16 @@ import java.util.List;
 final class ChatClient {
 
     static final int CONNECT_TIMEOUT_MS = 15_000;
-    static final int READ_TIMEOUT_MS = 120_000;
-    /** Bounded: one retry on 429 / 5xx / IO errors. */
+    static final int READ_TIMEOUT_MS = 60_000;
+    /**
+     * Hard cap on one request, end to end. The read timeout only bounds the gap between two
+     * reads, so a half-dead connection (e.g. after the device slept) or a trickling server could
+     * otherwise block a run forever; the watchdog closes the connection at this deadline.
+     */
+    static final long REQUEST_DEADLINE_MS = 90_000;
+    /** Bounded: one retry on 429 / 5xx / IO errors (including a deadline hit). */
     private static final int MAX_ATTEMPTS = 2;
+    private static final ScheduledExecutorService WATCHDOG = Executors.newSingleThreadScheduledExecutor();
 
     static final class ToolCall {
         final String name;
@@ -54,10 +66,22 @@ final class ChatClient {
 
     private final ProviderStore.Provider provider;
     private final String apiKey;
+    private volatile HttpURLConnection inFlight;
+    private volatile boolean cancelled;
 
     ChatClient(ProviderStore.Provider provider, String apiKey) {
         this.provider = provider;
         this.apiKey = apiKey;
+    }
+
+    /**
+     * Aborts the request in flight and any later one. Stop uses this: a thread interrupt does not
+     * wake a blocked socket read, closing the connection does.
+     */
+    void cancel() {
+        cancelled = true;
+        HttpURLConnection c = inFlight;
+        if (c != null) c.disconnect();
     }
 
     Result complete(String model, String system, String userText, byte[] jpeg, JSONArray tools,
@@ -186,12 +210,14 @@ final class ChatClient {
     private JSONObject request(String method, String path, JSONObject body) throws Exception {
         IOException last = null;
         for (int attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+            if (cancelled) throw new IOException("Cancelled");
             try {
                 return once(method, path, body);
             } catch (HttpError e) {
                 last = e;
                 if (e.code != 429 && e.code < 500) throw e;
             } catch (IOException e) {
+                if (cancelled) throw new IOException("Cancelled");
                 last = e;
             }
             if (attempt < MAX_ATTEMPTS) Thread.sleep(1000L);
@@ -200,7 +226,15 @@ final class ChatClient {
     }
 
     private JSONObject once(String method, String path, JSONObject body) throws IOException {
-        HttpURLConnection conn = (HttpURLConnection) new URL(provider.baseUrl + path).openConnection();
+        final HttpURLConnection conn = (HttpURLConnection) new URL(provider.baseUrl + path).openConnection();
+        final AtomicBoolean timedOut = new AtomicBoolean(false);
+        ScheduledFuture<?> deadline = WATCHDOG.schedule(new Runnable() {
+            @Override public void run() {
+                timedOut.set(true);
+                conn.disconnect();
+            }
+        }, REQUEST_DEADLINE_MS, TimeUnit.MILLISECONDS);
+        inFlight = conn;
         try {
             conn.setRequestMethod(method);
             conn.setConnectTimeout(CONNECT_TIMEOUT_MS);
@@ -234,7 +268,14 @@ final class ChatClient {
             } catch (Exception e) {
                 throw new IOException("Non-JSON response: " + (text.length() > 200 ? text.substring(0, 200) : text));
             }
+        } catch (IOException e) {
+            if (timedOut.get()) {
+                throw new IOException("No response within " + REQUEST_DEADLINE_MS / 1000 + "s (request aborted)", e);
+            }
+            throw e;
         } finally {
+            deadline.cancel(false);
+            inFlight = null;
             conn.disconnect();
         }
     }
