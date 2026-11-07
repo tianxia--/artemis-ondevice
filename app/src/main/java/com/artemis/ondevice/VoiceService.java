@@ -31,10 +31,14 @@ public class VoiceService extends Service implements Runnable {
     private static final String ACTION_STOP = "com.artemis.ondevice.VOICE_STOP";
     private static final String CHANNEL_ID = "artemis_voice";
     private static final int NOTIFICATION_ID = 18892;
-    static final String WAKE_WORD = "小艾小艾";
+    static final String WAKE_WORD = "你好阿特";
     /** 100 ms of 16 kHz audio per read. */
     private static final int CHUNK = SpeechEngine.SAMPLE_RATE / 10;
     private static final long MAX_UTTERANCE_MS = 20_000;
+    private static final int MAX_AMENDS = 2;
+    private static final String PROMPT = "我在呢，要我做什么？";
+    private static final String OK = "好的。";
+    private static final String CANCELLED = "好，不做了。";
 
     private volatile boolean running;
     private Thread worker;
@@ -94,10 +98,14 @@ public class VoiceService extends Service implements Runnable {
 
     @Override
     public void run() {
+        // Real-time audio: without this, a backgrounded app on some phones (Huawei) gets so little
+        // CPU that loading took minutes and recognition falls behind the microphone.
+        android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_URGENT_AUDIO);
         SpeechEngine engine = null;
         try {
             long t0 = System.currentTimeMillis();
             engine = SpeechEngine.load(getAssets());
+            engine.prepare(PROMPT, OK, CANCELLED, getString(R.string.blocked_app));
             Log.i(AgentService.TAG, "voice models loaded in " + (System.currentTimeMillis() - t0) + " ms");
             mic = new AudioRecord(MediaRecorder.AudioSource.VOICE_RECOGNITION, SpeechEngine.SAMPLE_RATE,
                     AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, CHUNK * 2 * 4);
@@ -124,44 +132,77 @@ public class VoiceService extends Service implements Runnable {
         }
     }
 
-    /** One exchange after the wake word: task, confirmation, run, result. */
+    /**
+     * One exchange after the wake word. Safe tasks (open, look, search) start right away; tasks
+     * that cannot be undone are read back for confirmation. A reply that is neither yes nor no
+     * is taken as a correction or addition and merged into the task, up to {@link #MAX_AMENDS} times.
+     */
     private void converse(SpeechEngine engine) throws InterruptedException {
         beep();
         status(getString(R.string.voice_listening));
         String heard = listen(engine);
+        Log.i(AgentService.TAG, "voice: heard " + heard.length() + " chars");
         if (heard.isEmpty()) {
-            say(engine, "没听清，请再叫我一次。");
-            return;
+            // Woken but nothing followed: ask, like a person would, and listen once more.
+            say(engine, PROMPT);
+            status(getString(R.string.voice_listening));
+            heard = listen(engine);
+            Log.i(AgentService.TAG, "voice: heard " + heard.length() + " chars after prompt");
+            if (heard.isEmpty()) return; // still silent: go back to waiting without a word
         }
-        status(getString(R.string.voice_correcting));
-        String task = TaskCorrector.correct(this, heard);
-        // Ask for a two-syllable answer: a lone "对" is often misheard, "确认" / "好的" are not.
-        say(engine, "你要我：" + task + "。说确认开始，说取消放弃。");
-        status(getString(R.string.voice_confirming));
-        String answer = listen(engine);
-        if (!isYes(answer)) {
-            say(engine, "好的，已取消。");
-            return;
+        for (int amends = 0; ; amends++) {
+            status(getString(R.string.voice_correcting));
+            long tc = System.currentTimeMillis();
+            TaskCorrector.Result r = TaskCorrector.correct(this, heard);
+            Log.i(AgentService.TAG, "voice: corrected in " + (System.currentTimeMillis() - tc) + " ms, confirm=" + r.confirm);
+            if (FlashLoop.namesBlockedApp(heard) || FlashLoop.namesBlockedApp(r.task)) {
+                say(engine, getString(R.string.blocked_app));
+                return;
+            }
+            if (!r.confirm) {
+                say(engine, OK); // no read-back: it is quick to undo, so just start
+                say(engine, runTask(r.task));
+                return;
+            }
+            say(engine, r.task + "，确认吗？");
+            status(getString(R.string.voice_confirming));
+            String answer = listen(engine);
+            Log.i(AgentService.TAG, "voice: answer " + answer.length() + " chars");
+            if (isYes(answer)) {
+                say(engine, OK);
+                say(engine, runTask(r.task));
+                return;
+            }
+            if (answer.isEmpty() || isNo(answer) || amends >= MAX_AMENDS) {
+                say(engine, CANCELLED);
+                return;
+            }
+            heard = heard + "，" + answer;
         }
-        say(engine, "好的，开始执行。");
-        String result = runTask(task);
-        say(engine, result);
     }
 
     /** Recognizes one sentence from now on; empty when nothing was said. */
     private String listen(SpeechEngine engine) throws InterruptedException {
         restartMic(); // drop what the microphone picked up while we were speaking
         engine.startUtterance();
-        long until = System.currentTimeMillis() + MAX_UTTERANCE_MS;
+        long t0 = System.currentTimeMillis();
+        long until = t0 + MAX_UTTERANCE_MS;
         while (running && System.currentTimeMillis() < until) {
             if (engine.feedUtterance(read())) break;
         }
+        Log.i(AgentService.TAG, "voice: listened " + (System.currentTimeMillis() - t0) + " ms");
         return engine.utteranceText();
     }
 
+    /** A short yes ("确认", "好的", "是的"); a longer reply may carry a change and is not a plain yes. */
     private static boolean isYes(String s) {
-        if (s.isEmpty() || s.contains("不") || s.contains("别") || s.contains("取消")) return false;
+        if (s.isEmpty() || s.length() > 6 || s.contains("不") || s.contains("别") || s.contains("取消")) return false;
         return s.matches(".*(对|是|好|确认|可以|行|嗯|没错|开始).*");
+    }
+
+    /** A plain no with nothing else ("不用", "取消", "算了"); "不对，是…" is a correction instead. */
+    private static boolean isNo(String s) {
+        return s.matches("^(不|不用|不要|不行|别|取消|算了|不做了)[了吧啊呀。，]*$");
     }
 
     /** Runs the task with the agent and returns the sentence to speak when it ends. */
@@ -211,7 +252,9 @@ public class VoiceService extends Service implements Runnable {
 
     private void say(SpeechEngine engine, String text) throws InterruptedException {
         status(getString(R.string.voice_speaking));
+        long t0 = System.currentTimeMillis();
         engine.speak(text);
+        Log.i(AgentService.TAG, "voice: spoke " + text.length() + " chars in " + (System.currentTimeMillis() - t0) + " ms");
     }
 
     private static void beep() {

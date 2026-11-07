@@ -8,7 +8,6 @@ import android.media.AudioTrack;
 import com.k2fsa.sherpa.onnx.EndpointConfig;
 import com.k2fsa.sherpa.onnx.EndpointRule;
 import com.k2fsa.sherpa.onnx.FeatureConfig;
-import com.k2fsa.sherpa.onnx.GeneratedAudio;
 import com.k2fsa.sherpa.onnx.KeywordSpotter;
 import com.k2fsa.sherpa.onnx.KeywordSpotterConfig;
 import com.k2fsa.sherpa.onnx.OfflineTts;
@@ -39,6 +38,7 @@ final class SpeechEngine {
     private final OfflineTts tts;
     private OnlineStream kwsStream;
     private OnlineStream asrStream;
+    private final java.util.Map<String, float[]> cache = new java.util.HashMap<>();
 
     private SpeechEngine(AssetManager am) {
         kws = new KeywordSpotter(am, kwsConfig());
@@ -98,27 +98,57 @@ final class SpeechEngine {
 
     // ------------------------------------------------------------------ synthesis
 
-    /** Speaks the text and returns when playback has finished. */
+    /** Synthesizes fixed phrases once so they play without delay later. */
+    void prepare(String... phrases) {
+        for (String p : phrases) cache.put(p, tts.generate(p, 0, 1.0f).getSamples());
+    }
+
+    /**
+     * Speaks the text and returns when playback has finished. Prepared phrases play at once;
+     * other text streams: the first sentence plays while the next ones are still being synthesized.
+     */
     void speak(String text) throws InterruptedException {
-        GeneratedAudio audio = tts.generate(text, 0, 1.0f);
-        float[] pcm = audio.getSamples();
-        if (pcm.length == 0) return;
-        int bytes = pcm.length * 4;
+        int rate = tts.sampleRate();
         AudioTrack track = new AudioTrack.Builder()
                 .setAudioAttributes(new AudioAttributes.Builder()
                         .setUsage(AudioAttributes.USAGE_ASSISTANT)
                         .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build())
                 .setAudioFormat(new AudioFormat.Builder()
                         .setEncoding(AudioFormat.ENCODING_PCM_FLOAT)
-                        .setSampleRate(audio.getSampleRate())
+                        .setSampleRate(rate)
                         .setChannelMask(AudioFormat.CHANNEL_OUT_MONO).build())
-                .setBufferSizeInBytes(bytes)
-                .setTransferMode(AudioTrack.MODE_STATIC)
+                .setBufferSizeInBytes(rate * 4) // 1 s
+                .setTransferMode(AudioTrack.MODE_STREAM)
                 .build();
+        final long[] written = {0};
+        final long t0 = System.currentTimeMillis();
         try {
-            track.write(pcm, 0, pcm.length, AudioTrack.WRITE_BLOCKING);
             track.play();
-            Thread.sleep(pcm.length * 1000L / audio.getSampleRate() + 150);
+            float[] cached = cache.get(text);
+            if (cached != null) {
+                track.write(cached, 0, cached.length, AudioTrack.WRITE_BLOCKING);
+                written[0] = cached.length;
+            } else {
+                // Not a lambda: the JNI side looks up invoke([F)Ljava/lang/Integer; by exact signature,
+                // and a lambda only has the erased invoke(Object) (NoSuchMethodError → abort).
+                tts.generateWithCallback(text, 0, 1.0f, new kotlin.jvm.functions.Function1<float[], Integer>() {
+                    @Override
+                    public Integer invoke(float[] samples) {
+                        if (written[0] == 0) {
+                            android.util.Log.i(AgentService.TAG, "voice: first audio after "
+                                    + (System.currentTimeMillis() - t0) + " ms");
+                        }
+                        track.write(samples, 0, samples.length, AudioTrack.WRITE_BLOCKING);
+                        written[0] += samples.length;
+                        return 1; // keep going
+                    }
+                });
+            }
+            // write() returns once the last chunk is queued; wait for it to be heard.
+            while (track.getPlaybackHeadPosition() < written[0]) {
+                if (track.getPlayState() != AudioTrack.PLAYSTATE_PLAYING) break;
+                Thread.sleep(50);
+            }
         } finally {
             track.stop();
             track.release();
@@ -166,10 +196,11 @@ final class SpeechEngine {
         m.setZipformer2Ctc(ctc);
         m.setTokens(DIR + "asr/tokens.txt");
         m.setNumThreads(2);
-        // Sentence ends after 1.2 s of silence; give up after 4 s of silence with nothing said.
+        // Sentence ends after 1.6 s of silence (1.2 s cut people off mid-task while they thought);
+        // give up after 4 s of silence with nothing said.
         EndpointConfig e = new EndpointConfig();
         e.setRule1(new EndpointRule(false, 4f, 0f));
-        e.setRule2(new EndpointRule(true, 1.2f, 0f));
+        e.setRule2(new EndpointRule(true, 1.6f, 0f));
         e.setRule3(new EndpointRule(false, 0f, 20f));
         OnlineRecognizerConfig c = new OnlineRecognizerConfig();
         c.setFeatConfig(features());

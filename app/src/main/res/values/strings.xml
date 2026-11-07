@@ -146,7 +146,7 @@
 
     <!-- Voice control (VoiceService) -->
     <string name="setting_voice">语音唤醒</string>
-    <string name="setting_voice_hint">说“小艾小艾”唤醒，然后说出任务。识别在手机上离线完成，开启后麦克风常开。</string>
+    <string name="setting_voice_hint">说“你好阿特”唤醒，然后说出任务。识别在手机上离线完成，开启后麦克风常开。</string>
     <string name="voice_permission_denied">没有麦克风权限，无法开启语音唤醒</string>
     <string name="channel_voice">语音唤醒</string>
     <string name="voice_title">语音唤醒已开启</string>
@@ -157,4 +157,5 @@
     <string name="voice_speaking">正在播报…</string>
     <string name="voice_running">正在执行任务</string>
     <string name="voice_failed">语音唤醒出错：%1$s</string>
+    <string name="blocked_app">为避免账号被封，Artemis 不操作微信、QQ 和支付宝。</string>
 </resources>

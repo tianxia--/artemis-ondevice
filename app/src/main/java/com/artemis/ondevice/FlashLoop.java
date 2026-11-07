@@ -14,9 +14,12 @@ import org.json.JSONObject;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Deque;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 /**
  * The agent loop, on the phone: observe (screenshot + indexed element list)
@@ -52,6 +55,23 @@ final class FlashLoop {
                     + "progress. Do not repeat it again: take a different path, or call finish(status=\"failed\") "
                     + "with the blocking reason. One more repeat ends the task.";
 
+    /**
+     * Apps whose risk controls flag accessibility automation and can ban the user's account (a
+     * WeChat test run nearly got the account banned). The agent never operates them: a run that
+     * lands in one ends as failed, and open_app refuses to launch them.
+     */
+    static final Set<String> BLOCKED_APPS = new HashSet<>(Arrays.asList(
+            "com.tencent.mm", "com.tencent.mobileqq", "com.eg.android.AlipayGphone"));
+
+    /** The same apps named in a task ("微信读书", "QQ音乐" etc. are other apps and allowed). */
+    private static final java.util.regex.Pattern BLOCKED_IN_TASK = java.util.regex.Pattern.compile(
+            "微信(?!读书)|支付宝|wechat|weixin|alipay|(?<![a-z])qq(?!音乐|邮箱|浏览器|阅读)",
+            java.util.regex.Pattern.CASE_INSENSITIVE);
+
+    static boolean namesBlockedApp(String task) {
+        return task != null && BLOCKED_IN_TASK.matcher(task).find();
+    }
+
     private static final String CLIPBOARD_HANDOFF =
             "The text is now on the clipboard: long-press the input field, tap Paste (粘贴), and check the field before sending.";
 
@@ -77,6 +97,13 @@ final class FlashLoop {
         String status = RunRecord.STOPPED;
         String answer = "";
         String nudge = null;
+        if (namesBlockedApp(run.task)) {
+            Log.w(AgentService.TAG, "task names a blocked app; not starting");
+            run.answer = ctx.getString(R.string.blocked_app);
+            run.endedAt = System.currentTimeMillis();
+            run.status = RunRecord.FAILED;
+            return;
+        }
         try {
             for (int step = 1; run.maxSteps <= 0 || step <= run.maxSteps; step++) {
                 if (stop.stopped()) break;
@@ -92,6 +119,12 @@ final class FlashLoop {
                 RunState.phase(RunState.Phase.OBSERVING);
                 Observation obs = Observation.capture(a11y);
                 long tObs = System.currentTimeMillis();
+                if (BLOCKED_APPS.contains(obs.packageName)) {
+                    Log.w(AgentService.TAG, "blocked app in front; stopping");
+                    status = RunRecord.FAILED;
+                    answer = ctx.getString(R.string.blocked_app);
+                    break;
+                }
 
                 RunState.phase(RunState.Phase.THINKING);
                 String prompt = buildUserPrompt(obs, step, finalTurn ? FINAL_TURN_WARNING : nudge);
@@ -431,6 +464,9 @@ final class FlashLoop {
                 }
                 case "open_app": {
                     String app = a.optString("app");
+                    if (BLOCKED_APPS.contains(app.trim())) {
+                        return "open_app('" + app + "') FAILED: this app is blocked (account ban risk); call finish(status=\"failed\")";
+                    }
                     String pkg = launch(s, app);
                     settle(1000);
                     return "open_app('" + app + "') " + (pkg != null ? "ok -> " + pkg : "FAILED: no launchable app matches");
@@ -502,6 +538,8 @@ final class FlashLoop {
             }
             if (best == null) return null;
             pkg = best.activityInfo.packageName;
+            if (BLOCKED_APPS.contains(pkg)) throw new IllegalArgumentException(
+                    "this app is blocked (account ban risk); call finish(status=\"failed\")");
             intent = pm.getLaunchIntentForPackage(pkg);
             if (intent == null) return null;
         }

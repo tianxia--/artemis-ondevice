@@ -39,8 +39,9 @@ if [ ! -f "$ASSETS/kws/tokens.txt" ]; then
   cp "$TMP/$K/joiner-epoch-12-avg-2-chunk-16-left-64.int8.onnx" "$ASSETS/kws/joiner.onnx"
   cp "$TMP/$K/tokens.txt" "$ASSETS/kws/tokens.txt"
 fi
-# Wake word "小艾小艾", written as the model's pinyin tokens (initials and tonal finals).
-printf 'x iǎo ài x iǎo ài @小艾小艾\n' > "$ASSETS/kws/keywords.txt"
+# Wake word "你好阿特", written as the model's pinyin tokens (initials and tonal finals).
+# Keep it unlike phone assistants' wake words (Huawei "小艺小艺", Xiaomi "小爱同学"): they wake too.
+printf 'n ǐ h ǎo ā t è @你好阿特\n' > "$ASSETS/kws/keywords.txt"
 
 # Speech recognition: streaming zipformer CTC, Chinese, int8.
 if [ ! -f "$ASSETS/asr/tokens.txt" ]; then
