@@ -1,5 +1,7 @@
 package com.artemis.ondevice;
 
+import android.content.ClipData;
+import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
@@ -49,6 +51,9 @@ final class FlashLoop {
             "[WARNING] You have now done the same action on the same screen " + REPEAT_WARN + " times without "
                     + "progress. Do not repeat it again: take a different path, or call finish(status=\"failed\") "
                     + "with the blocking reason. One more repeat ends the task.";
+
+    private static final String CLIPBOARD_HANDOFF =
+            "The text is now on the clipboard: long-press the input field, tap Paste (粘贴), and check the field before sending.";
 
     interface StopSignal {
         boolean stopped();
@@ -239,7 +244,10 @@ final class FlashLoop {
                 + "`duration_ms` long enough for the action (e.g. 3000 ms to record a short voice message; the finger lifts at the end, which "
                 + "usually sends). A plain `tap` on them does nothing useful.\n"
                 + "4. To start an app, use `open_app` (package name or app label); it opens on the app's start screen.\n"
-                + "5. You may call up to " + MAX_ACTIONS_PER_TURN + " tools per turn; they run in order.\n\n"
+                + "5. You may call up to " + MAX_ACTIONS_PER_TURN + " tools per turn; they run in order.\n"
+                + "6. If `type_text` reports no editable field, it has put your text on the clipboard: long-press the input "
+                + "field and tap Paste (粘贴) instead of typing letter by letter on the keyboard. Never tap Paste at any other "
+                + "time: the clipboard may hold the user's private data.\n\n"
                 + "# 6. TERMINATION (`finish`)\n"
                 + "- Call `finish(status=\"completed\", answer=...)` only after the latest screen visibly shows the objective is achieved; "
                 + "put the requested information in `answer`, in the language of the objective.\n"
@@ -379,9 +387,15 @@ final class FlashLoop {
                     }
                     String text = a.optString("text");
                     boolean ok = Gestures.setText(s, text, false);
-                    settle(SETTLE_MS);
-                    return "type_text('" + clip(text, 40) + "'" + (a.has("index") ? ", index=" + a.optInt("index") : "")
-                            + ") " + (ok ? "ok" : "FAILED: no editable field");
+                    String head = "type_text('" + clip(text, 40) + "'" + (a.has("index") ? ", index=" + a.optInt("index") : "") + ") ";
+                    if (ok) {
+                        settle(SETTLE_MS);
+                        return head + "ok";
+                    }
+                    // Apps such as WeChat hide their input fields from accessibility services. Their
+                    // own Paste menu still works, so hand the text over through the clipboard.
+                    s.getSystemService(ClipboardManager.class).setPrimaryClip(ClipData.newPlainText("artemis", text));
+                    return head + "FAILED: no editable field. " + CLIPBOARD_HANDOFF;
                 }
                 case "swipe": {
                     String dir = a.optString("direction", "up");
