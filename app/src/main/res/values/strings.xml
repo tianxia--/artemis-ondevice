@@ -143,4 +143,18 @@
     <string name="need_model">至少添加一个模型</string>
     <string name="test_ok">连接正常 · %1$s · %2$d ms</string>
     <string name="test_failed">连接失败：%s</string>
+
+    <!-- Voice control (VoiceService) -->
+    <string name="setting_voice">语音唤醒</string>
+    <string name="setting_voice_hint">说“小艾小艾”唤醒，然后说出任务。识别在手机上离线完成，开启后麦克风常开。</string>
+    <string name="voice_permission_denied">没有麦克风权限，无法开启语音唤醒</string>
+    <string name="channel_voice">语音唤醒</string>
+    <string name="voice_title">语音唤醒已开启</string>
+    <string name="voice_waiting">说“%1$s”唤醒</string>
+    <string name="voice_listening">正在听…</string>
+    <string name="voice_correcting">正在理解…</string>
+    <string name="voice_confirming">等待确认…</string>
+    <string name="voice_speaking">正在播报…</string>
+    <string name="voice_running">正在执行任务</string>
+    <string name="voice_failed">语音唤醒出错：%1$s</string>
 </resources>

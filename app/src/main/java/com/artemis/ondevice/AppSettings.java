@@ -10,6 +10,7 @@ final class AppSettings {
     private static final String MAX_STEPS = "max_steps";
     private static final String SCREENSHOT = "screenshot";
     private static final String BUBBLE = "bubble";
+    private static final String VOICE = "voice";
 
     private AppSettings() {}
 
@@ -26,4 +27,8 @@ final class AppSettings {
 
     static boolean bubble(Context c) { return p(c).getBoolean(BUBBLE, true); }
     static void setBubble(Context c, boolean v) { p(c).edit().putBoolean(BUBBLE, v).apply(); }
+
+    /** Hands-free voice control (VoiceService). Off by default: it keeps the microphone open. */
+    static boolean voice(Context c) { return p(c).getBoolean(VOICE, false); }
+    static void setVoice(Context c, boolean v) { p(c).edit().putBoolean(VOICE, v).apply(); }
 }

@@ -1,6 +1,8 @@
 package com.artemis.ondevice;
 
+import android.Manifest;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.os.Bundle;
 import android.provider.Settings;
 import android.text.Editable;
@@ -11,6 +13,8 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.google.android.material.appbar.MaterialToolbar;
@@ -88,6 +92,30 @@ public class SettingsActivity extends AppCompatActivity {
             AppSettings.setBubble(this, on);
             AgentAccessibilityService s = AgentAccessibilityService.get();
             if (s != null) s.applyBubbleSetting();
+        });
+
+        MaterialSwitch voice = findViewById(R.id.switch_voice);
+        voice.setChecked(VoiceService.canRun(this));
+        ActivityResultLauncher<String> micPermission = registerForActivityResult(
+                new ActivityResultContracts.RequestPermission(), granted -> {
+                    if (granted) {
+                        VoiceService.startIfEnabled(this);
+                    } else {
+                        AppSettings.setVoice(this, false);
+                        voice.setChecked(false);
+                        Toast.makeText(this, R.string.voice_permission_denied, Toast.LENGTH_LONG).show();
+                    }
+                });
+        voice.setOnCheckedChangeListener((b, on) -> {
+            if (on == VoiceService.canRun(this)) return;
+            AppSettings.setVoice(this, on);
+            if (!on) {
+                VoiceService.stop(this);
+            } else if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+                VoiceService.startIfEnabled(this);
+            } else {
+                micPermission.launch(Manifest.permission.RECORD_AUDIO);
+            }
         });
     }
 
