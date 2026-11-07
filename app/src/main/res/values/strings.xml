@@ -51,6 +51,7 @@
     <string name="n_steps">%d 步</string>
     <string name="no_answer">（没有回答）</string>
     <string name="stopped_by_you">已手动停止。</string>
+    <string name="stopped_no_progress">没有进展，已自动停止：最近 %1$d 步里，同一界面上的同一操作重复了 %2$d 次。</string>
     <string name="channel_running">任务执行中</string>
     <string name="channel_done">任务完成</string>
     <string name="error_no_model">还没有选择模型。请在设置中添加模型服务。</string>

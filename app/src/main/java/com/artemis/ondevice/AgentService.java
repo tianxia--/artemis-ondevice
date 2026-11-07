@@ -123,6 +123,7 @@ public class AgentService extends Service implements RunState.Listener {
                     lock.release();
                     RunState.end(run);
                     notifyDone(run);
+                    returnToApp(run);
                     finish();
                 }
             }
@@ -178,6 +179,24 @@ public class AgentService extends Service implements RunState.Listener {
                 .setAutoCancel(true)
                 .build();
         getSystemService(NotificationManager.class).notify(DONE_NOTIFICATION_ID, n);
+    }
+
+    /**
+     * When the run ended on its own (not by the user's Stop), bring its summary to the front so
+     * the user lands back in the app. Started from the accessibility service's context: a bound
+     * accessibility service may start activities from the background, a foreground service may not.
+     */
+    private void returnToApp(RunRecord r) {
+        if (RunRecord.STOPPED.equals(r.status)) return;
+        Context from = AgentAccessibilityService.get();
+        if (from == null) from = this;
+        try {
+            from.startActivity(new Intent(from, RunDetailActivity.class)
+                    .putExtra(RunDetailActivity.EXTRA_RUN_ID, r.id)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP));
+        } catch (RuntimeException e) {
+            Log.w(TAG, "could not bring the run summary to front: " + e.getMessage());
+        }
     }
 
     private PendingIntent openRun(String runId) {

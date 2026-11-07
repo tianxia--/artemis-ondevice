@@ -35,6 +35,20 @@ final class FlashLoop {
             "You did not call any tools last turn. Please make progress by calling an action tool or 'finish'.";
     private static final String FINAL_TURN_WARNING =
             "[WARNING] This is your final turn; only 'finish' is available.";
+    /**
+     * No-progress guard (on top of the optional step cap, which is off by default): a
+     * (screen, actions) pair seen {@link #REPEAT_WARN} times within the last
+     * {@link #REPEAT_WINDOW} steps earns a warning, {@link #REPEAT_STOP} times ends the run
+     * as failed. Counting repeats rather than "screen unchanged" also catches loops that
+     * alternate between screens (e.g. Create -> Send -> back to Create).
+     */
+    static final int REPEAT_WINDOW = 20;
+    static final int REPEAT_WARN = 3;
+    static final int REPEAT_STOP = 4;
+    private static final String REPEAT_WARNING =
+            "[WARNING] You have now done the same action on the same screen " + REPEAT_WARN + " times without "
+                    + "progress. Do not repeat it again: take a different path, or call finish(status=\"failed\") "
+                    + "with the blocking reason. One more repeat ends the task.";
 
     interface StopSignal {
         boolean stopped();
@@ -45,6 +59,7 @@ final class FlashLoop {
     private final RunRecord run;
     private final StopSignal stop;
     private final Deque<String> history = new ArrayDeque<>();
+    private final Deque<String> recentStates = new ArrayDeque<>();
 
     FlashLoop(Context ctx, ChatClient client, RunRecord run, StopSignal stop) {
         this.ctx = ctx;
@@ -134,6 +149,14 @@ final class FlashLoop {
 
                 remember(rec);
                 if (finished) break;
+                int repeats = countRepeat(obs, rec);
+                if (repeats >= REPEAT_STOP) {
+                    Log.w(AgentService.TAG, "no progress: same screen+action " + repeats + "x; stopping");
+                    status = RunRecord.FAILED;
+                    answer = ctx.getString(R.string.stopped_no_progress, REPEAT_WINDOW, repeats);
+                    break;
+                }
+                if (repeats == REPEAT_WARN && nudge == null) nudge = REPEAT_WARNING;
                 if (finalTurn) {
                     status = RunRecord.FAILED;
                     answer = "Reached the step limit (" + run.maxSteps + ") before the task finished.";
@@ -246,6 +269,23 @@ final class FlashLoop {
                 + clip(s.reasoning, 300) + " -> "
                 + (s.actions.isEmpty() ? "(no tool call)" : TextUtils.join(" ; ", s.actions)));
         while (history.size() > HISTORY_STEPS) history.removeFirst();
+    }
+
+    /**
+     * Records this step's (screen, actions) state and returns how often it occurs in the last
+     * {@link #REPEAT_WINDOW} steps. Digits are dropped so clocks, timers and shifting element
+     * indices do not make an otherwise identical state look new.
+     */
+    private int countRepeat(Observation obs, RunRecord.Step rec) {
+        StringBuilder s = new StringBuilder(obs.packageName).append('\n');
+        for (Observation.Element e : obs.elements) s.append(e.label).append('\n');
+        s.append("=>").append(TextUtils.join(";", rec.actions));
+        String state = s.toString().replaceAll("\\d", "");
+        recentStates.addLast(state);
+        while (recentStates.size() > REPEAT_WINDOW) recentStates.removeFirst();
+        int count = 0;
+        for (String st : recentStates) if (st.equals(state)) count++;
+        return count;
     }
 
     // ------------------------------------------------------------------ tools
