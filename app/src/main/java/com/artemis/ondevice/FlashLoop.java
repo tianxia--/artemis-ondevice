@@ -56,6 +56,19 @@ final class FlashLoop {
                     + "with the blocking reason. One more repeat ends the task.";
 
     /**
+     * Consecutive steps whose actions all failed: a warning at {@link #FAIL_WARN}, the run ends
+     * as failed at {@link #FAIL_STOP} (the model keeps hitting errors instead of changing course).
+     */
+    static final int FAIL_WARN = 3;
+    static final int FAIL_STOP = 5;
+    private static final String FAIL_WARNING =
+            "[WARNING] Every action in your last " + FAIL_WARN + " steps failed. Read the FAILED reasons in the "
+                    + "history and change approach (another element, scroll, back, open_app), or call "
+                    + "finish(status=\"failed\") with the blocking reason.";
+    /** Longest wait for a launched app to come to the front and stop changing. */
+    private static final long LAUNCH_SETTLE_MAX_MS = 5000;
+
+    /**
      * Apps whose risk controls flag accessibility automation and can ban the user's account (a
      * WeChat test run nearly got the account banned). The agent never operates them: a run that
      * lands in one ends as failed, and open_app refuses to launch them.
@@ -97,6 +110,7 @@ final class FlashLoop {
         String status = RunRecord.STOPPED;
         String answer = "";
         String nudge = null;
+        int failStreak = 0;
         if (namesBlockedApp(run.task)) {
             Log.w(AgentService.TAG, "task names a blocked app; not starting");
             run.answer = ctx.getString(R.string.blocked_app);
@@ -145,6 +159,7 @@ final class FlashLoop {
                 boolean finished = false;
                 nudge = r.toolCalls.isEmpty() ? NO_TOOL_NUDGE : null;
                 int n = 0;
+                int okActions = 0;
                 long pausedMs = 0;
                 for (ChatClient.ToolCall call : r.toolCalls) {
                     if (n++ >= MAX_ACTIONS_PER_TURN) break;
@@ -164,6 +179,7 @@ final class FlashLoop {
                     }
                     String outcome = execute(a11y, obs, call);
                     if (outcome.contains("FAILED")) rec.failedAction = true;
+                    else okActions++;
                     rec.actions.add(outcome);
                 }
                 long tAct = System.currentTimeMillis();
@@ -195,6 +211,14 @@ final class FlashLoop {
                     break;
                 }
                 if (repeats == REPEAT_WARN && nudge == null) nudge = REPEAT_WARNING;
+                failStreak = rec.failedAction && okActions == 0 ? failStreak + 1 : 0;
+                if (failStreak >= FAIL_STOP) {
+                    Log.w(AgentService.TAG, "all actions failed " + failStreak + " steps in a row; stopping");
+                    status = RunRecord.FAILED;
+                    answer = ctx.getString(R.string.stopped_failures, failStreak);
+                    break;
+                }
+                if (failStreak == FAIL_WARN && nudge == null) nudge = FAIL_WARNING;
                 if (finalTurn) {
                     status = RunRecord.FAILED;
                     answer = "Reached the step limit (" + run.maxSteps + ") before the task finished.";
@@ -468,8 +492,11 @@ final class FlashLoop {
                         return "open_app('" + app + "') FAILED: this app is blocked (account ban risk); call finish(status=\"failed\")";
                     }
                     String pkg = launch(s, app);
-                    settle(1000);
-                    return "open_app('" + app + "') " + (pkg != null ? "ok -> " + pkg : "FAILED: no launchable app matches");
+                    if (pkg == null) {
+                        return "open_app('" + app + "') FAILED: no launchable app matches; use the label shown on the home screen";
+                    }
+                    long ms = settleOnApp(s, obs, pkg);
+                    return "open_app('" + app + "') ok -> " + pkg + " (ready after " + ms + "ms)";
                 }
                 case "wait": {
                     long ms = Math.max(200, Math.min(10_000, a.optLong("ms", 1000)));
@@ -503,6 +530,14 @@ final class FlashLoop {
             return new float[]{e.cx(), e.cy()};
         }
         if (a.has("x") && a.has("y")) {
+            int x = a.optInt("x", -1), y = a.optInt("y", -1);
+            if (x < 0 || x > 1000 || y < 0 || y > 1000) {
+                throw new IllegalArgumentException("x,y (" + x + "," + y + ") is outside the 0-1000 scale");
+            }
+            // (0,0) is the corner of the status bar, never a real target: the model left x,y unset.
+            if (x <= 5 && y <= 5) {
+                throw new IllegalArgumentException("x,y (0,0) is not a target; pass the element index or real coordinates");
+            }
             return new float[]{
                     clampX(obs, a.optInt("x") / 1000f * obs.screenW),
                     clampY(obs, a.optInt("y") / 1000f * obs.screenH)};
@@ -524,20 +559,11 @@ final class FlashLoop {
 
     private static String launch(AgentAccessibilityService s, String app) {
         PackageManager pm = s.getPackageManager();
-        Intent intent = pm.getLaunchIntentForPackage(app);
-        String pkg = app;
+        Intent intent = pm.getLaunchIntentForPackage(app.trim());
+        String pkg = app.trim();
         if (intent == null) {
-            Intent q = new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER);
-            List<ResolveInfo> apps = pm.queryIntentActivities(q, 0);
-            ResolveInfo best = null;
-            String want = app.trim().toLowerCase(Locale.ROOT);
-            for (ResolveInfo ri : apps) {
-                String label = String.valueOf(ri.loadLabel(pm)).toLowerCase(Locale.ROOT);
-                if (label.equals(want)) { best = ri; break; }
-                if (best == null && label.contains(want)) best = ri;
-            }
-            if (best == null) return null;
-            pkg = best.activityInfo.packageName;
+            pkg = findApp(pm, app);
+            if (pkg == null) return null;
             if (BLOCKED_APPS.contains(pkg)) throw new IllegalArgumentException(
                     "this app is blocked (account ban risk); call finish(status=\"failed\")");
             intent = pm.getLaunchIntentForPackage(pkg);
@@ -547,6 +573,92 @@ final class FlashLoop {
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
         s.startActivity(intent);
         return pkg;
+    }
+
+    /**
+     * English names the model tends to use for apps whose launcher label is Chinese on the
+     * phone (and the other way round). Each entry lists names of the same app.
+     */
+    private static final String[][] APP_ALIASES = {
+            {"settings", "设置"}, {"camera", "相机"}, {"gallery", "photos", "图库", "相册"},
+            {"clock", "alarm", "时钟", "闹钟"}, {"calendar", "日历"}, {"calculator", "计算器"},
+            {"contacts", "联系人", "通讯录"}, {"phone", "dialer", "电话", "拨号"},
+            {"messages", "messaging", "sms", "信息", "短信"}, {"browser", "浏览器"},
+            {"files", "file manager", "文件管理", "文件"}, {"notes", "memo", "备忘录", "笔记"},
+            {"weather", "天气"}, {"music", "音乐"}, {"app store", "appgallery", "play store", "应用市场"},
+            {"maps", "地图"}, {"email", "mail", "电子邮件", "邮件"}, {"recorder", "录音机"},
+    };
+
+    /**
+     * Package of the launchable app that best matches a label the model gave: exact label,
+     * then label starting with / containing the name, then the name containing the label
+     * ("打开设置应用" -> 设置), then the package name. Case, spaces and punctuation are ignored,
+     * and common English/Chinese names are tried as aliases. Null when nothing matches.
+     */
+    private static String findApp(PackageManager pm, String app) {
+        List<String> wants = new ArrayList<>();
+        String want = norm(app);
+        if (want.isEmpty()) return null;
+        wants.add(want);
+        for (String[] group : APP_ALIASES) {
+            for (String name : group) {
+                if (!norm(name).equals(want)) continue;
+                for (String alias : group) if (!wants.contains(norm(alias))) wants.add(norm(alias));
+            }
+        }
+        Intent q = new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER);
+        String best = null;
+        int bestScore = 0;
+        for (ResolveInfo ri : pm.queryIntentActivities(q, 0)) {
+            String label = norm(String.valueOf(ri.loadLabel(pm)));
+            String pkg = ri.activityInfo.packageName;
+            for (int i = 0; i < wants.size(); i++) {
+                String w = wants.get(i);
+                int score;
+                if (label.equals(w)) score = 50;
+                else if (label.startsWith(w)) score = 40;
+                else if (label.contains(w)) score = 30;
+                else if (label.length() >= 2 && w.contains(label)) score = 20 + Math.min(label.length(), 9);
+                else if (w.length() >= 3 && pkg.toLowerCase(Locale.ROOT).contains(w)) score = 10;
+                else continue;
+                if (i > 0) score -= 1; // the name as given beats an alias
+                if (score > bestScore) {
+                    bestScore = score;
+                    best = pkg;
+                }
+            }
+        }
+        return best;
+    }
+
+    private static String norm(String s) {
+        return s.toLowerCase(Locale.ROOT).replaceAll("[\\s\\p{Punct}·•（）()]+", "");
+    }
+
+    /**
+     * After a launch, waits until the app is in front and its element list stopped changing
+     * (two polls in a row unchanged), at most {@link #LAUNCH_SETTLE_MAX_MS}. Returns the wait.
+     * A splash screen that holds still can end the wait early; the model can still call wait.
+     */
+    private static long settleOnApp(AgentAccessibilityService s, Observation obs, String pkg)
+            throws InterruptedException {
+        long t0 = System.currentTimeMillis();
+        android.graphics.Rect screen = new android.graphics.Rect(0, 0, obs.screenW, obs.screenH);
+        String prev = null;
+        int same = 0;
+        Thread.sleep(300);
+        while (System.currentTimeMillis() - t0 < LAUNCH_SETTLE_MAX_MS) {
+            if (pkg.equals(s.currentPackage())) {
+                StringBuilder sig = new StringBuilder();
+                for (Observation.Element e : UiTree.collect(s, screen, 400).elements) sig.append(e.label).append('\n');
+                String now = sig.toString();
+                same = !now.isEmpty() && now.equals(prev) ? same + 1 : 0;
+                if (same >= 2) break;
+                prev = now;
+            }
+            Thread.sleep(250);
+        }
+        return System.currentTimeMillis() - t0;
     }
 
     private static void settle(long ms) throws InterruptedException {
