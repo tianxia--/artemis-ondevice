@@ -272,12 +272,24 @@ final class ChatClient {
             if (timedOut.get()) {
                 throw new IOException("No response within " + REQUEST_DEADLINE_MS / 1000 + "s (request aborted)", e);
             }
-            throw e;
+            if (e instanceof HttpError) throw e;
+            throw hideAddress(e, conn.getURL().getHost());
         } finally {
             deadline.cancel(false);
             inFlight = null;
             conn.disconnect();
         }
+    }
+
+    /**
+     * Network errors name the server ("Unable to resolve host ...", "Failed to connect to /1.2.3.4:443"),
+     * and they reach the screen and the run history; the base URL stays hidden there.
+     */
+    private static IOException hideAddress(IOException e, String host) {
+        String msg = e.getMessage();
+        if (msg == null) return e;
+        String clean = msg.replace(host, "***").replaceAll("\\d{1,3}(\\.\\d{1,3}){3}(:\\d+)?", "***");
+        return clean.equals(msg) ? e : new IOException(e.getClass().getSimpleName() + ": " + clean);
     }
 
     private static String readAll(InputStream in) throws IOException {

@@ -179,7 +179,6 @@ public class SettingsActivity extends AppCompatActivity {
         for (ProviderStore.Provider p : providers) {
             View row = LayoutInflater.from(this).inflate(R.layout.item_provider, providerList, false);
             ((TextView) row.findViewById(R.id.provider_name)).setText(p.name.isEmpty() ? p.id : p.name);
-            ((TextView) row.findViewById(R.id.provider_url)).setText(p.baseUrl);
             ((TextView) row.findViewById(R.id.provider_meta)).setText(getString(R.string.n_models, p.models.size())
                     + " · " + p.api + " · "
                     + getString(ProviderStore.hasApiKey(this, p.id) ? R.string.key_stored : R.string.key_missing));

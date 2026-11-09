@@ -47,16 +47,6 @@
             </LinearLayout>
 
             <TextView
-                android:id="@+id/provider_url"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
-                android:ellipsize="middle"
-                android:singleLine="true"
-                android:textAppearance="?attr/textAppearanceBodySmall"
-                android:textColor="@color/text_secondary" />
-
-            <TextView
                 android:id="@+id/provider_meta"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"

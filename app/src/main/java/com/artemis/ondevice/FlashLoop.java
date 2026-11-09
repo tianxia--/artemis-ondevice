@@ -22,10 +22,10 @@ import java.util.Locale;
 import java.util.Set;
 
 /**
- * The agent loop, on the phone: observe (screenshot + indexed element list)
- * -> one model call with tools -> execute the tool calls -> repeat until {@code finish},
- * Stop, or the optional step cap. Element index first, 0-1000 normalized
- * coordinates as the fallback; no step cap by default, and when a cap is set, a final turn that may only call finish.
+ * The agent loop, on the phone: observe (screenshot + indexed element list) -> one model
+ * call with tools -> execute the tool calls -> repeat until {@code finish}, Stop, or the
+ * optional step cap. Element index first, 0-1000 normalized coordinates as the fallback;
+ * no step cap by default, and when a cap is set, a final turn that may only call finish.
  *
  * Every step is recorded in a {@link RunRecord} (persisted by {@link RunStore}); logcat
  * only gets timings and action names, never the task, reasoning, answer or typed text.
