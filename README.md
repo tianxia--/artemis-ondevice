@@ -9,8 +9,10 @@ or Anthropic endpoint you configure.
 
 ## Demo
 
-[docs/demo.mp4](docs/demo.mp4): adding a model service, running a task, the run details and
-switching the app language.
+Adding a model service, running a task, the run details and switching the app language
+(also in the repo as [docs/demo.mp4](docs/demo.mp4)):
+
+https://github.com/user-attachments/assets/de1a104c-70e2-4eec-8132-3c98319e0f43
 
 ## How it works
 

@@ -8,7 +8,9 @@ OpenAI 兼容或 Anthropic 接口。
 
 ## 演示视频
 
-[docs/demo.mp4](docs/demo.mp4)：添加模型服务、执行任务、查看任务详情、切换应用语言。
+添加模型服务、执行任务、查看任务详情、切换应用语言（仓库里也有一份：[docs/demo.mp4](docs/demo.mp4)）：
+
+https://github.com/user-attachments/assets/de1a104c-70e2-4eec-8132-3c98319e0f43
 
 ## 工作原理
 
