@@ -7,9 +7,13 @@ All notable changes to this project are listed here. The format follows
 ## [Unreleased]
 
 ### Added
+- MCP server (Settings > MCP server, off by default): AI tools on the computer, such as Claude Code or Cursor, can run tasks on the phone (`run_task`, `get_run`, `stop_run`, ...) or observe and operate it directly (`observe`, `tap`, `type_text`, ...). Streamable HTTP on port 8765, localhost only unless LAN access is turned on, bearer token required. See docs/mcp.md.
 - Skills (record and replay): save a completed run as a skill from the run details menu. The same task then replays the recorded steps without model calls and ends with one model call that checks the screen and answers; if a recorded target is missing, the model takes over from there. Skills are listed in Settings (rename, delete, turn off) and shown first among the home suggestions.
 - GitHub Actions: build on every push and pull request; build, sign and publish the APK when a `v*` tag is pushed.
 - Issue and pull request templates, contributing guide and this changelog.
+
+### Changed
+- The phone actions moved from `FlashLoop` into `Actions`, shared by the model loop, skill replay and the MCP server.
 
 ### Fixed
 - A run could wait forever when it started while another app was already open behind ours: the screen hold now also ends when our last screen pauses.

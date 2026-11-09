@@ -54,6 +54,16 @@ final class RunStore {
         }
     }
 
+    /** The step's JPEG as stored, or null. */
+    static byte[] screenshotBytes(Context ctx, String id, int step) {
+        File f = new File(new File(root(ctx), id), "step_" + step + ".jpg");
+        try {
+            return f.exists() ? Files.readAllBytes(f.toPath()) : null;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
     static Bitmap loadScreenshot(Context ctx, String id, int step, int maxSide) {
         File f = new File(new File(root(ctx), id), "step_" + step + ".jpg");
         if (!f.exists()) return null;

@@ -128,6 +128,7 @@ public class MainActivity extends AppCompatActivity implements RunState.Listener
     protected void onResume() {
         super.onResume();
         VoiceService.startIfEnabled(this);
+        McpService.startIfEnabled(this);
         renderSetup();
         renderSuggestions();
         RunState.subscribe(this);

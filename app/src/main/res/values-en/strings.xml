@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="accessibility_service_description">Lets the Artemis agent on this phone read the screen, take screenshots, and tap, swipe and type for tasks you start in Artemis. It opens no network ports and only sends screenshots and UI elements to the model service you configure.</string>
+    <string name="accessibility_service_description">Lets the Artemis agent on this phone read the screen, take screenshots, and tap, swipe and type for tasks you start in Artemis. It opens no network port unless you turn on the MCP server in Settings, and sends screenshots and UI elements only to the model service you configure.</string>
 
     <!-- Home -->
     <string name="home_greeting">What can I do on your phone?</string>
@@ -171,4 +171,28 @@
     <string name="confirm_delete_skill">Delete the skill \"%s\"?</string>
     <string name="step_replayed">Replayed</string>
     <string name="metric_replayed">Replayed steps</string>
+    <!-- MCP server -->
+    <string name="section_mcp">MCP server</string>
+    <string name="setting_mcp">Turn on the MCP server</string>
+    <string name="setting_mcp_hint">Lets AI tools on your computer (Claude Code, Cursor and others) give this phone tasks over MCP, or look at the screen and operate it themselves. Listens on port %d while on; every request needs the access token.</string>
+    <string name="setting_mcp_lan">Allow LAN access</string>
+    <string name="setting_mcp_lan_hint">When off, it only listens on the phone itself; connect from the computer with adb forward. When on, devices on the same network can connect directly, over plain HTTP.</string>
+    <string name="confirm_mcp_lan_title">Allow LAN access?</string>
+    <string name="confirm_mcp_lan">Every device on this network can reach the port. The connection is plain HTTP, so others on the network may capture the token, and the token is enough to control this phone. Only turn this on in networks you trust.</string>
+    <string name="action_allow">Allow</string>
+    <string name="mcp_address">Address: %s</string>
+    <string name="mcp_address_local">Address: %1$s\nOn the computer, run first: adb forward tcp:%2$d tcp:%2$d</string>
+    <string name="mcp_no_lan">No network address found (is the phone online?)</string>
+    <string name="mcp_token">Access token</string>
+    <string name="mcp_copy_token">Copy token</string>
+    <string name="mcp_regenerate">Regenerate</string>
+    <string name="confirm_mcp_regenerate">The old token stops working right away; connected computers need the new one.</string>
+    <string name="mcp_copy_command">Copy the Claude Code command</string>
+    <string name="mcp_copied_token">Token copied</string>
+    <string name="mcp_copied_command">Command copied (it contains the token; keep it private)</string>
+    <string name="mcp_not_running">The MCP server is not running: %s</string>
+    <string name="channel_mcp">MCP server</string>
+    <string name="mcp_notification_title">MCP server running</string>
+    <string name="mcp_notification_local">Localhost port %d only (connect with adb forward)</string>
+    <string name="mcp_notification_lan">Listening on the LAN, port %d</string>
 </resources>

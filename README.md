@@ -49,7 +49,9 @@ history and only the latest screenshot is sent.
   model list can be fetched from the service, and the connection can be tested.
 - **Privacy**: API keys are encrypted with an Android Keystore AES-GCM key and never logged. The
   base URL is masked on screen by default (tap the eye icon to show it) and removed from error
-  messages. Logcat (`ArtemisAgent`) only carries timings and action names.
+  messages. No network port is opened unless you turn on the MCP server. Logcat (`ArtemisAgent`) only carries timings and action names.
+- **MCP server** (optional, off by default): AI tools on your computer, such as Claude Code or
+  Cursor, can give the phone tasks or operate it directly over MCP; see [docs/mcp.md](docs/mcp.md).
 - **Language**: Settings > Language switches the app between Simplified Chinese and English, or
   follows the system.
 - **Voice wake-up** (optional, Mandarin only): say "你好阿特", then say the task. Wake word,

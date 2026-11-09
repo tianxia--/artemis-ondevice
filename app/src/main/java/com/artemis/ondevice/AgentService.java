@@ -23,6 +23,7 @@ public class AgentService extends Service implements RunState.Listener {
     static final String ACTION_START = "com.artemis.ondevice.START";
     static final String ACTION_STOP = "com.artemis.ondevice.STOP";
     static final String EXTRA_TASK = "task";
+    static final String EXTRA_RUN_ID = "run_id";
 
     private static final String CHANNEL_ID = "artemis_agent_run";
     private static final String DONE_CHANNEL_ID = "artemis_agent_done";
@@ -34,9 +35,12 @@ public class AgentService extends Service implements RunState.Listener {
     private volatile ChatClient client;
     private Thread worker;
 
-    static void start(Context ctx, String task) {
+    /** Starts a run of the task and returns its id (ignored if a run is already going). */
+    static String start(Context ctx, String task) {
+        String id = RunRecord.newId();
         ctx.startForegroundService(new Intent(ctx, AgentService.class).setAction(ACTION_START)
-                .putExtra(EXTRA_TASK, task));
+                .putExtra(EXTRA_TASK, task).putExtra(EXTRA_RUN_ID, id));
+        return id;
     }
 
     static void stop(Context ctx) {
@@ -74,17 +78,18 @@ public class AgentService extends Service implements RunState.Listener {
         }
         if (ACTION_START.equals(action)) {
             if (worker != null && worker.isAlive()) return START_NOT_STICKY;
-            begin(intent.getStringExtra(EXTRA_TASK));
+            String id = intent.getStringExtra(EXTRA_RUN_ID);
+            begin(intent.getStringExtra(EXTRA_TASK), id == null ? RunRecord.newId() : id);
         }
         return START_NOT_STICKY;
     }
 
-    private void begin(final String task) {
+    private void begin(final String task, String runId) {
         stopRequested = false;
         final Context ctx = this;
         ProviderStore.Active active = ProviderStore.getActive(ctx);
         final ProviderStore.Provider provider = active == null ? null : ProviderStore.get(ctx, active.provider);
-        final RunRecord run = RunRecord.start(task, provider == null ? "" : provider.id,
+        final RunRecord run = RunRecord.start(runId, task, provider == null ? "" : provider.id,
                 active == null ? "" : active.model, AppSettings.maxSteps(ctx), AppSettings.screenshot(ctx));
         RunState.begin(run);
         worker = new Thread(new Runnable() {

@@ -61,6 +61,16 @@
                 android:value="On-device phone agent loop" />
         </service>
 
+        <!-- MCP server for desktop AI tools; runs only while turned on in Settings. -->
+        <service
+            android:name=".McpService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Local MCP server that lets the user's own desktop AI tools operate this phone" />
+        </service>
+
         <service
             android:name=".VoiceService"
             android:exported="false"

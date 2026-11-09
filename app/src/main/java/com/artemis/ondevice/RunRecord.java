@@ -88,9 +88,13 @@ final class RunRecord {
     String skillId = "";
     final List<Step> steps = new CopyOnWriteArrayList<>();
 
-    static RunRecord start(String task, String providerId, String model, int maxSteps, boolean screenshot) {
+    static String newId() {
+        return System.currentTimeMillis() + "-" + UUID.randomUUID().toString().substring(0, 8);
+    }
+
+    static RunRecord start(String id, String task, String providerId, String model, int maxSteps, boolean screenshot) {
         RunRecord r = new RunRecord();
-        r.id = System.currentTimeMillis() + "-" + UUID.randomUUID().toString().substring(0, 8);
+        r.id = id;
         r.task = task;
         r.providerId = providerId;
         r.model = model;

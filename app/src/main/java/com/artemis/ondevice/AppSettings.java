@@ -11,6 +11,8 @@ final class AppSettings {
     private static final String SCREENSHOT = "screenshot";
     private static final String BUBBLE = "bubble";
     private static final String VOICE = "voice";
+    private static final String MCP = "mcp";
+    private static final String MCP_LAN = "mcp_lan";
 
     private AppSettings() {}
 
@@ -31,4 +33,12 @@ final class AppSettings {
     /** Hands-free voice control (VoiceService). Off by default: it keeps the microphone open. */
     static boolean voice(Context c) { return p(c).getBoolean(VOICE, false); }
     static void setVoice(Context c, boolean v) { p(c).edit().putBoolean(VOICE, v).apply(); }
+
+    /** MCP server (McpService). Off by default: it opens a port. */
+    static boolean mcp(Context c) { return p(c).getBoolean(MCP, false); }
+    static void setMcp(Context c, boolean v) { p(c).edit().putBoolean(MCP, v).apply(); }
+
+    /** Listen on the LAN too, not only on localhost. Off by default: plain HTTP on the network. */
+    static boolean mcpLan(Context c) { return p(c).getBoolean(MCP_LAN, false); }
+    static void setMcpLan(Context c, boolean v) { p(c).edit().putBoolean(MCP_LAN, v).apply(); }
 }

@@ -1,9 +1,14 @@
 package com.artemis.ondevice;
 
 import android.Manifest;
+import android.content.ClipData;
+import android.content.ClipDescription;
+import android.content.ClipboardManager;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.os.Build;
 import android.os.Bundle;
+import android.os.PersistableBundle;
 import android.provider.Settings;
 import android.text.Editable;
 import android.text.TextWatcher;
@@ -99,6 +104,7 @@ public class SettingsActivity extends AppCompatActivity {
         });
 
         setupLanguage();
+        setupMcp();
 
         MaterialSwitch voice = findViewById(R.id.switch_voice);
         voice.setChecked(VoiceService.canRun(this));
@@ -192,6 +198,7 @@ public class SettingsActivity extends AppCompatActivity {
         }
 
         renderSkills();
+        renderMcp();
 
         boolean on = AgentAccessibilityService.get() != null;
         a11yState.setText(on ? R.string.perm_on : R.string.perm_off);
@@ -272,5 +279,113 @@ public class SettingsActivity extends AppCompatActivity {
         } catch (Exception e) {
             Toast.makeText(this, e.getMessage(), Toast.LENGTH_LONG).show();
         }
+    }
+
+    // ------------------------------------------------------------------ MCP server
+
+    private void setupMcp() {
+        ((TextView) findViewById(R.id.mcp_hint)).setText(getString(R.string.setting_mcp_hint, McpService.PORT));
+        MaterialSwitch on = findViewById(R.id.switch_mcp);
+        on.setChecked(AppSettings.mcp(this));
+        on.setOnCheckedChangeListener((b, checked) -> {
+            AppSettings.setMcp(this, checked);
+            McpService.apply(this);
+            renderMcpSoon();
+        });
+        MaterialSwitch lan = findViewById(R.id.switch_mcp_lan);
+        lan.setChecked(AppSettings.mcpLan(this));
+        lan.setOnCheckedChangeListener((b, checked) -> {
+            if (checked == AppSettings.mcpLan(this)) return;
+            if (!checked) {
+                setMcpLan(false);
+                return;
+            }
+            new MaterialAlertDialogBuilder(this)
+                    .setTitle(R.string.confirm_mcp_lan_title)
+                    .setMessage(R.string.confirm_mcp_lan)
+                    .setPositiveButton(R.string.action_allow, (d, w) -> setMcpLan(true))
+                    .setNegativeButton(R.string.cancel, (d, w) -> lan.setChecked(false))
+                    .setOnCancelListener(d -> lan.setChecked(false))
+                    .show();
+        });
+        findViewById(R.id.mcp_copy_token).setOnClickListener(v -> {
+            try {
+                copySecret(McpService.token(this));
+                Toast.makeText(this, R.string.mcp_copied_token, Toast.LENGTH_SHORT).show();
+            } catch (Exception e) {
+                Toast.makeText(this, e.getMessage(), Toast.LENGTH_LONG).show();
+            }
+        });
+        findViewById(R.id.mcp_regenerate).setOnClickListener(v -> new MaterialAlertDialogBuilder(this)
+                .setMessage(R.string.confirm_mcp_regenerate)
+                .setPositiveButton(R.string.mcp_regenerate, (d, w) -> {
+                    try {
+                        McpService.newToken(this);
+                        McpService.apply(this);
+                    } catch (Exception e) {
+                        Toast.makeText(this, e.getMessage(), Toast.LENGTH_LONG).show();
+                    }
+                })
+                .setNegativeButton(R.string.cancel, null)
+                .show());
+        findViewById(R.id.mcp_copy_command).setOnClickListener(v -> {
+            try {
+                String url = "http://" + mcpHost() + ":" + McpService.PORT + McpServer.PATH;
+                String command = (AppSettings.mcpLan(this) ? "" : "adb forward tcp:" + McpService.PORT + " tcp:" + McpService.PORT + " && ")
+                        + "claude mcp add --transport http artemis-phone " + url
+                        + " --header \"Authorization: Bearer " + McpService.token(this) + "\"";
+                copySecret(command);
+                Toast.makeText(this, R.string.mcp_copied_command, Toast.LENGTH_LONG).show();
+            } catch (Exception e) {
+                Toast.makeText(this, e.getMessage(), Toast.LENGTH_LONG).show();
+            }
+        });
+    }
+
+    private void setMcpLan(boolean on) {
+        AppSettings.setMcpLan(this, on);
+        McpService.apply(this);
+        renderMcpSoon();
+    }
+
+    private String mcpHost() {
+        if (!AppSettings.mcpLan(this)) return "127.0.0.1";
+        String ip = McpService.lanAddress();
+        return ip == null ? "<phone-ip>" : ip;
+    }
+
+    private void renderMcp() {
+        boolean on = AppSettings.mcp(this);
+        findViewById(R.id.mcp_details).setVisibility(on ? View.VISIBLE : View.GONE);
+        if (!on) return;
+        String url = "http://" + mcpHost() + ":" + McpService.PORT + McpServer.PATH;
+        TextView address = findViewById(R.id.mcp_address);
+        if (AppSettings.mcpLan(this) && McpService.lanAddress() == null) {
+            address.setText(R.string.mcp_no_lan);
+        } else {
+            address.setText(AppSettings.mcpLan(this) ? getString(R.string.mcp_address, url)
+                    : getString(R.string.mcp_address_local, url, McpService.PORT));
+        }
+        TextView error = findViewById(R.id.mcp_error);
+        String err = McpService.lastError;
+        error.setVisibility(err == null ? View.GONE : View.VISIBLE);
+        if (err != null) error.setText(getString(R.string.mcp_not_running, err));
+    }
+
+    /** The service starts asynchronously; show its outcome once it had a moment. */
+    private void renderMcpSoon() {
+        renderMcp();
+        findViewById(R.id.mcp_details).postDelayed(this::renderMcp, 1000);
+    }
+
+    /** Copies without showing the content in the clipboard preview (Android 13+). */
+    private void copySecret(String text) {
+        ClipData clip = ClipData.newPlainText("artemis-mcp", text);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            PersistableBundle extras = new PersistableBundle();
+            extras.putBoolean(ClipDescription.EXTRA_IS_SENSITIVE, true);
+            clip.getDescription().setExtras(extras);
+        }
+        getSystemService(ClipboardManager.class).setPrimaryClip(clip);
     }
 }
