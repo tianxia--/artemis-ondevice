@@ -6,10 +6,14 @@ All notable changes to this project are listed here. The format follows
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-09
+
+Skills (record and replay), an MCP server for desktop AI tools, and CI.
+
 ### Added
 - MCP server (Settings > MCP server, off by default): AI tools on the computer, such as Claude Code or Cursor, can run tasks on the phone (`run_task`, `get_run`, `stop_run`, ...) or observe and operate it directly (`observe`, `tap`, `type_text`, ...). Streamable HTTP on port 8765, localhost only unless LAN access is turned on, bearer token required. See docs/mcp.md.
 - Skills (record and replay): save a completed run as a skill from the run details menu. The same task then replays the recorded steps without model calls and ends with one model call that checks the screen and answers; if a recorded target is missing, the model takes over from there. Skills are listed in Settings (rename, delete, turn off) and shown first among the home suggestions.
-- GitHub Actions: build on every push and pull request; build, sign and publish the APK when a `v*` tag is pushed.
+- GitHub Actions: build on every push and pull request; build, sign and publish the APK when a `v*` tag is pushed (skipped when the signing secrets are not set or the release already exists).
 - Issue and pull request templates, contributing guide and this changelog.
 
 ### Changed
@@ -35,5 +39,6 @@ First public release.
 - Base URL masked on screen by default and removed from error messages.
 - WeChat, QQ and Alipay are never operated.
 
-[Unreleased]: https://github.com/tianxia--/artemis-ondevice/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/tianxia--/artemis-ondevice/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/tianxia--/artemis-ondevice/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/tianxia--/artemis-ondevice/releases/tag/v0.1.0

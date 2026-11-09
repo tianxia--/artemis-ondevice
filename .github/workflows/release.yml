@@ -18,14 +18,35 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # A release published by hand (signed locally) needs nothing from this workflow; without the
+      # signing secrets there is nothing it can sign. Either way it ends quietly.
+      - name: Check whether to build
+        id: gate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HAS_KEY: ${{ secrets.ARTEMIS_RELEASE_KEYSTORE_BASE64 != '' }}
+        run: |
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "::notice::Release $TAG already exists; nothing to do."
+            echo "go=false" >> "$GITHUB_OUTPUT"
+          elif [ "$HAS_KEY" != "true" ]; then
+            echo "::notice::Signing secrets are not set; build and publish $TAG by hand."
+            echo "go=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "go=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - uses: actions/setup-java@v4
+        if: steps.gate.outputs.go == 'true'
         with:
           distribution: temurin
           java-version: 17
 
       - uses: gradle/actions/setup-gradle@v4
+        if: steps.gate.outputs.go == 'true'
 
       - name: Cache voice library and models
+        if: steps.gate.outputs.go == 'true'
         uses: actions/cache@v4
         with:
           path: |
@@ -34,14 +55,17 @@ jobs:
           key: voice-${{ hashFiles('scripts/fetch-voice.sh') }}
 
       - name: Fetch voice library and models
+        if: steps.gate.outputs.go == 'true'
         run: scripts/fetch-voice.sh
 
       - name: Check the tag matches versionName
+        if: steps.gate.outputs.go == 'true'
         run: |
           version="$(sed -n 's/.*versionName = "\(.*\)".*/\1/p' app/build.gradle.kts)"
           [ "v$version" = "$TAG" ] || { echo "tag $TAG does not match versionName $version"; exit 1; }
 
       - name: Restore the signing key
+        if: steps.gate.outputs.go == 'true'
         env:
           KEYSTORE_BASE64: ${{ secrets.ARTEMIS_RELEASE_KEYSTORE_BASE64 }}
         run: |
@@ -50,6 +74,7 @@ jobs:
 
       # Gradle reads ORG_GRADLE_PROJECT_<name> as the gradle property <name>.
       - name: Build signed release APK
+        if: steps.gate.outputs.go == 'true'
         env:
           ORG_GRADLE_PROJECT_ARTEMIS_RELEASE_STORE_FILE: ${{ runner.temp }}/release.jks
           ORG_GRADLE_PROJECT_ARTEMIS_RELEASE_STORE_PASSWORD: ${{ secrets.ARTEMIS_RELEASE_STORE_PASSWORD }}
@@ -58,6 +83,7 @@ jobs:
         run: ./gradlew --no-daemon assembleRelease
 
       - name: Verify the signature
+        if: steps.gate.outputs.go == 'true'
         run: |
           apksigner="$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)/apksigner"
           "$apksigner" verify --print-certs app/build/outputs/apk/release/app-release.apk
@@ -65,6 +91,7 @@ jobs:
           rm "$RUNNER_TEMP/release.jks"
 
       - name: Write release notes
+        if: steps.gate.outputs.go == 'true'
         run: |
           version="${TAG#v}"
           awk -v v="$version" '
@@ -78,6 +105,7 @@ jobs:
           echo "SHA-256: \`$(sha256sum "artemis-ondevice-$TAG.apk" | cut -d' ' -f1)\`" >> notes.md
 
       - name: Publish the release
+        if: steps.gate.outputs.go == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh release create "$TAG" "artemis-ondevice-$TAG.apk" --title "$TAG" --notes-file notes.md
