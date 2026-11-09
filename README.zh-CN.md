@@ -12,6 +12,12 @@ OpenAI 兼容或 Anthropic 接口。
 
 https://github.com/user-attachments/assets/de1a104c-70e2-4eec-8132-3c98319e0f43
 
+## 下载
+
+到 [Releases](https://github.com/tianxia--/artemis-ondevice/releases) 下载 APK，安装到 Android 11 及以上的手机。
+Android 13 及以上，不是从应用商店安装的应用，无障碍开关可能是灰的（提示「受限设置」）：
+打开 设置 > 应用 > Artemis On-Device，点右上角 ⋮，选 **允许受限设置**，再去开启无障碍服务。
+
 ## 工作原理
 
 每一步：截图 + 带编号的界面元素列表（无障碍服务）-> 调用一次模型（带工具）-> 在手机上执行工具调用

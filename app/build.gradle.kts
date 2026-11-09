@@ -17,9 +17,24 @@ android {
         ndk { abiFilters += listOf("arm64-v8a", "x86_64") }
     }
 
+    // Release signing comes from ~/.gradle/gradle.properties (never from the repo); without
+    // it, assembleRelease builds an unsigned APK.
+    val releaseStore = providers.gradleProperty("ARTEMIS_RELEASE_STORE_FILE").orNull
+    signingConfigs {
+        if (releaseStore != null) {
+            create("release") {
+                storeFile = file(releaseStore)
+                storePassword = providers.gradleProperty("ARTEMIS_RELEASE_STORE_PASSWORD").get()
+                keyAlias = providers.gradleProperty("ARTEMIS_RELEASE_KEY_ALIAS").get()
+                keyPassword = providers.gradleProperty("ARTEMIS_RELEASE_KEY_PASSWORD").get()
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
+            if (releaseStore != null) signingConfig = signingConfigs.getByName("release")
         }
     }
     compileOptions {

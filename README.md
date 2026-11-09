@@ -14,6 +14,13 @@ Adding a model service, running a task, the run details and switching the app la
 
 https://github.com/user-attachments/assets/de1a104c-70e2-4eec-8132-3c98319e0f43
 
+## Download
+
+Get the APK from [Releases](https://github.com/tianxia--/artemis-ondevice/releases) and install it on an
+Android 11+ phone. On Android 13 and later, the accessibility switch may be greyed out ("Restricted
+setting") for an app installed outside an app store: open Settings > Apps > Artemis On-Device, tap
+the ⋮ menu, choose **Allow restricted settings**, then turn the service on.
+
 ## How it works
 
 Each step: screenshot + indexed UI element list (accessibility service) -> one model call with
