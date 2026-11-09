@@ -1,0 +1,21 @@
+Artemis On-Device
+Copyright 2026 tianxia--
+
+This product is an independent Android port that was developed with reference to
+ARTEMIS (https://github.com/google/artemis), Copyright 2026 Google LLC,
+licensed under the Apache License, Version 2.0.
+
+Modifications relative to ARTEMIS: the Flash observe-and-act loop, its tool set,
+element-index-first targeting and the model provider registry were re-implemented in
+Java to run entirely on the phone through an Android accessibility service, instead of
+a host computer driving the device over adb. The floating bubble, run history, run
+details, voice wake-up, Chinese / English UI and the Android app itself are new.
+
+This project is not affiliated with, endorsed by or sponsored by Google.
+
+Third-party components bundled in the APK:
+- sherpa-onnx (https://github.com/k2-fsa/sherpa-onnx), Apache License 2.0
+- AndroidX AppCompat and Material Components for Android, Apache License 2.0
+- Offline voice models (wake word, speech recognition, speech synthesis) downloaded by
+  scripts/fetch-voice.sh from the sherpa-onnx releases; each model remains under its
+  authors' license, listed on the sherpa-onnx model pages.

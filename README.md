@@ -7,6 +7,10 @@ language ("open Settings and tell me the battery level"), and the agent reads th
 swipes and types until the task is done. Only the model call goes online, to an OpenAI-compatible
 or Anthropic endpoint you configure.
 
+This project is an independent Android port developed with reference to
+[ARTEMIS](https://github.com/google/artemis) by Google (Apache-2.0). It is for learning and
+research only and is not affiliated with Google; see [Disclaimer](#disclaimer).
+
 ## Demo
 
 Adding a model service, running a task, the run details and switching the app language
@@ -112,3 +116,42 @@ git config core.hooksPath .githooks
   unrestricted there.
 - On Android 12 and below, the floating bubble and notifications follow the system language
   rather than the in-app language choice.
+
+## Acknowledgements
+
+- [google/artemis](https://github.com/google/artemis) (Apache-2.0): the design this project follows,
+  including the Flash observe-and-act loop, the tool set, element-index-first targeting with
+  normalized-coordinate fallback, and the model provider registry. This project re-implements
+  them in Java to run on the phone itself through an accessibility service, rather than on a
+  host computer over adb.
+- [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) (Apache-2.0): offline wake word, speech
+  recognition and speech synthesis. The voice models remain under their authors' licenses.
+- AndroidX AppCompat and Material Components for Android (Apache-2.0).
+
+## Disclaimer
+
+- **Learning and research only.** This is an experimental project for studying mobile GUI
+  agents. It is not a product, is not production-ready, and must not be used for commercial
+  purposes, automated abuse, bypassing app or platform rules, or anything unlawful.
+- **Not affiliated with Google.** "ARTEMIS" refers to Google's open-source project, which this
+  work references. This project is not developed, endorsed or supported by Google or the
+  ARTEMIS authors.
+- **The agent can make mistakes.** A language model decides every tap, swipe and text entry,
+  and it can act on the wrong element or misunderstand the task. Use a test device or test
+  accounts, watch the run, and keep it away from payments, transfers, messages to real
+  people, deletions and account or system settings. You are responsible for any action it
+  takes on your device.
+- **Your data goes to your model provider.** Screenshots and the on-screen element list are
+  sent to the model service you configure, and may include personal information shown on the
+  screen. Only use providers you trust, and follow their terms. Nothing is sent to the
+  authors of this project.
+- **Respect third-party terms.** Automating other apps may break their terms of service and
+  get accounts restricted. WeChat, QQ and Alipay are blocked for this reason; check the rules
+  of any other app before automating it.
+- **No warranty.** The software is provided "as is", without warranties or conditions of any
+  kind, as stated in the Apache License 2.0. The authors are not liable for any damage, data
+  loss or account restrictions that result from using it.
+
+## License
+
+[Apache License 2.0](LICENSE). See [NOTICE](NOTICE) for attribution and third-party components.
