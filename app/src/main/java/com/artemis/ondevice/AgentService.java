@@ -107,7 +107,7 @@ public class AgentService extends Service implements RunState.Listener {
                     client = new ChatClient(provider, key);
                     new FlashLoop(ctx, client, run, new FlashLoop.StopSignal() {
                         @Override public boolean stopped() { return stopRequested; }
-                    }).run();
+                    }, SkillStore.find(ctx, task)).run();
                 } catch (InterruptedException e) {
                     run.status = RunRecord.STOPPED;
                     run.answer = getString(R.string.stopped_by_you);

@@ -163,4 +163,16 @@
     <string name="voice_running">正在执行任务</string>
     <string name="voice_failed">语音唤醒出错：%1$s</string>
     <string name="blocked_app">为避免账号被封，Artemis 不操作微信、QQ 和支付宝。</string>
+    <!-- Skills (record and replay) -->
+    <string name="action_save_skill">保存为技能</string>
+    <string name="skill_saved">已保存为技能，下次执行同样的任务会直接回放</string>
+    <string name="skill_save_failed">保存失败：%s</string>
+    <string name="section_skills">技能</string>
+    <string name="skills_empty">还没有技能。任务成功后，在任务详情右上角菜单里选「保存为技能」。</string>
+    <string name="skill_meta">%1$d 步 · 用过 %2$d 次 · 成功 %3$d 次</string>
+    <string name="skill_rename">重命名</string>
+    <string name="skill_name_hint">技能名称</string>
+    <string name="confirm_delete_skill">删除技能「%s」？</string>
+    <string name="step_replayed">回放</string>
+    <string name="metric_replayed">回放步数</string>
 </resources>

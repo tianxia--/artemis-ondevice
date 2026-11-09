@@ -9,6 +9,7 @@ import android.text.Editable;
 import android.text.TextWatcher;
 import android.view.LayoutInflater;
 import android.view.View;
+import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -32,7 +33,7 @@ import java.util.List;
 public class SettingsActivity extends AppCompatActivity {
 
     private MaterialAutoCompleteTextView providerPicker, modelPicker;
-    private LinearLayout providerList;
+    private LinearLayout providerList, skillList;
     private TextView a11yState;
     private List<ProviderStore.Provider> providers = new ArrayList<>();
 
@@ -46,6 +47,7 @@ public class SettingsActivity extends AppCompatActivity {
         providerPicker = findViewById(R.id.active_provider);
         modelPicker = findViewById(R.id.active_model);
         providerList = findViewById(R.id.providers);
+        skillList = findViewById(R.id.skills);
         a11yState = findViewById(R.id.a11y_state);
 
         findViewById(R.id.add_provider).setOnClickListener(
@@ -189,8 +191,86 @@ public class SettingsActivity extends AppCompatActivity {
             providerList.addView(row);
         }
 
+        renderSkills();
+
         boolean on = AgentAccessibilityService.get() != null;
         a11yState.setText(on ? R.string.perm_on : R.string.perm_off);
         a11yState.setTextColor(getColor(on ? R.color.success : R.color.danger));
+    }
+
+    // ------------------------------------------------------------------ skills
+
+    private void renderSkills() {
+        List<Skill> skills = SkillStore.list(this);
+        skillList.removeAllViews();
+        findViewById(R.id.skills_empty).setVisibility(skills.isEmpty() ? View.VISIBLE : View.GONE);
+        for (Skill sk : skills) {
+            View row = LayoutInflater.from(this).inflate(R.layout.item_skill, skillList, false);
+            ((TextView) row.findViewById(R.id.skill_name)).setText(sk.name);
+            ((TextView) row.findViewById(R.id.skill_meta)).setText(
+                    getString(R.string.skill_meta, sk.actions.size(), sk.used, sk.succeeded));
+            MaterialSwitch enabled = row.findViewById(R.id.skill_enabled);
+            enabled.setChecked(sk.enabled);
+            enabled.setOnCheckedChangeListener((b, on) -> {
+                sk.enabled = on;
+                updateSkill(sk);
+            });
+            row.setOnClickListener(v -> new MaterialAlertDialogBuilder(this)
+                    .setTitle(sk.name)
+                    .setItems(new CharSequence[]{getString(R.string.skill_rename), getString(R.string.delete)},
+                            (d, which) -> {
+                                if (which == 0) renameSkill(sk);
+                                else confirmDeleteSkill(sk);
+                            })
+                    .show());
+            skillList.addView(row);
+        }
+    }
+
+    private void renameSkill(Skill sk) {
+        EditText input = new EditText(this);
+        input.setHint(R.string.skill_name_hint);
+        input.setText(sk.name);
+        input.setSelection(input.length());
+        int pad = Math.round(20 * getResources().getDisplayMetrics().density);
+        LinearLayout box = new LinearLayout(this);
+        box.setPadding(pad, pad / 2, pad, 0);
+        box.addView(input, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT));
+        new MaterialAlertDialogBuilder(this)
+                .setTitle(R.string.skill_rename)
+                .setView(box)
+                .setPositiveButton(R.string.save, (d, w) -> {
+                    String name = input.getText().toString().trim();
+                    if (name.isEmpty()) return;
+                    sk.name = name;
+                    updateSkill(sk);
+                    renderSkills();
+                })
+                .setNegativeButton(R.string.cancel, null)
+                .show();
+    }
+
+    private void confirmDeleteSkill(Skill sk) {
+        new MaterialAlertDialogBuilder(this)
+                .setMessage(getString(R.string.confirm_delete_skill, sk.name))
+                .setPositiveButton(R.string.delete, (d, w) -> {
+                    try {
+                        SkillStore.remove(this, sk.id);
+                    } catch (Exception e) {
+                        Toast.makeText(this, e.getMessage(), Toast.LENGTH_LONG).show();
+                    }
+                    renderSkills();
+                })
+                .setNegativeButton(R.string.cancel, null)
+                .show();
+    }
+
+    private void updateSkill(Skill sk) {
+        try {
+            SkillStore.update(this, sk);
+        } catch (Exception e) {
+            Toast.makeText(this, e.getMessage(), Toast.LENGTH_LONG).show();
+        }
     }
 }

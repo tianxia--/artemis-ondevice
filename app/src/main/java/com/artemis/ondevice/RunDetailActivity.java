@@ -41,13 +41,14 @@ public class RunDetailActivity extends AppCompatActivity implements RunState.Lis
     private final Adapter adapter = new Adapter();
     private String runId;
     private RunRecord run;
+    private MaterialToolbar toolbar;
 
     @Override
     protected void onCreate(Bundle state) {
         super.onCreate(state);
         setContentView(R.layout.activity_run_detail);
         runId = getIntent().getStringExtra(EXTRA_RUN_ID);
-        MaterialToolbar toolbar = findViewById(R.id.toolbar);
+        toolbar = findViewById(R.id.toolbar);
         toolbar.setNavigationOnClickListener(v -> finish());
         toolbar.setOnMenuItemClickListener(item -> {
             if (run == null) return true;
@@ -59,6 +60,8 @@ public class RunDetailActivity extends AppCompatActivity implements RunState.Lis
                     AgentService.start(this, run.task);
                     moveTaskToBack(true);
                 }
+            } else if (id == R.id.menu_save_skill) {
+                saveSkill();
             } else if (id == R.id.menu_copy) {
                 getSystemService(ClipboardManager.class).setPrimaryClip(
                         ClipData.newPlainText("answer", run.answer));
@@ -123,7 +126,23 @@ public class RunDetailActivity extends AppCompatActivity implements RunState.Lis
 
     private void show(RunRecord r) {
         run = r;
+        toolbar.getMenu().findItem(R.id.menu_save_skill).setVisible(SkillStore.canSave(r));
         adapter.setSteps(r.steps);
+    }
+
+    private void saveSkill() {
+        final RunRecord r = run;
+        io.execute(() -> {
+            String msg;
+            try {
+                SkillStore.saveFromRun(this, r);
+                msg = getString(R.string.skill_saved);
+            } catch (Exception e) {
+                msg = getString(R.string.skill_save_failed, e.getMessage());
+            }
+            final String out = msg;
+            main.post(() -> Toast.makeText(this, out, Toast.LENGTH_LONG).show());
+        });
     }
 
     // ------------------------------------------------------------------ header
@@ -160,6 +179,8 @@ public class RunDetailActivity extends AppCompatActivity implements RunState.Lis
         addMetric(grid, Format.tokens(r.promptTokens() + r.completionTokens()), R.string.metric_tokens_total);
         addMetric(grid, String.valueOf(r.failedActions()), R.string.metric_failed_actions);
         addMetric(grid, Format.seconds(r.maxLlmMs()), R.string.metric_llm_max);
+        int replayed = r.replayedSteps();
+        if (replayed > 0) addMetric(grid, replayed + " / " + r.steps.size(), R.string.metric_replayed);
 
         ((StepChart) h.findViewById(R.id.chart)).setSteps(r.steps);
         legend(h.findViewById(R.id.legend_obs), R.color.bar_obs);
@@ -220,8 +241,10 @@ public class RunDetailActivity extends AppCompatActivity implements RunState.Lis
             RunRecord.Step s = steps.get(position - 1);
             View v = holder.itemView;
             long sec = s.offsetMs / 1000;
-            ((TextView) v.findViewById(R.id.step_title)).setText(getString(R.string.step_title, s.index,
-                    String.format(Locale.US, "%02d:%02d", sec / 60, sec % 60)));
+            String title = getString(R.string.step_title, s.index,
+                    String.format(Locale.US, "%02d:%02d", sec / 60, sec % 60));
+            ((TextView) v.findViewById(R.id.step_title)).setText(
+                    s.replayed ? title + " · " + getString(R.string.step_replayed) : title);
             ((TextView) v.findViewById(R.id.step_actions)).setText(
                     s.actions.isEmpty() ? "(no tool call)" : TextUtils.join("\n", s.actions));
             TextView reasoning = v.findViewById(R.id.step_reasoning);

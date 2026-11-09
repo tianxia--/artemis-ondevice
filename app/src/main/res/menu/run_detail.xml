@@ -7,6 +7,11 @@
         android:title="@string/action_rerun"
         app:showAsAction="always" />
     <item
+        android:id="@+id/menu_save_skill"
+        android:title="@string/action_save_skill"
+        android:visible="false"
+        app:showAsAction="never" />
+    <item
         android:id="@+id/menu_copy"
         android:title="@string/action_copy"
         app:showAsAction="never" />

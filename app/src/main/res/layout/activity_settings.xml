@@ -89,6 +89,23 @@
 
             <TextView
                 style="@style/SettingsSection"
+                android:text="@string/section_skills" />
+
+            <LinearLayout
+                android:id="@+id/skills"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical" />
+
+            <TextView
+                android:id="@+id/skills_empty"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/skills_empty"
+                android:textAppearance="@style/TextAppearance.Artemis.Caption" />
+
+            <TextView
+                style="@style/SettingsSection"
                 android:text="@string/section_run" />
 
             <com.google.android.material.card.MaterialCardView

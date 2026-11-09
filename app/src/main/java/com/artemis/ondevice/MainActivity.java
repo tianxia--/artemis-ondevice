@@ -34,6 +34,8 @@ import java.util.concurrent.Executors;
 /** Home: setup checklist, task composer, live run, overview metrics and recent runs. */
 public class MainActivity extends AppCompatActivity implements RunState.Listener {
 
+    private static final int MAX_SKILL_CHIPS = 3;
+
     static final String EXTRA_FOCUS_TASK = "focus_task";
 
     private final ExecutorService io = Executors.newSingleThreadExecutor();
@@ -96,16 +98,6 @@ public class MainActivity extends AppCompatActivity implements RunState.Listener
                 .setNegativeButton(R.string.cancel, null)
                 .show());
 
-        ChipGroup suggestions = findViewById(R.id.suggestions);
-        for (int res : new int[]{R.string.suggest_battery, R.string.suggest_wifi, R.string.suggest_storage}) {
-            Chip c = new Chip(this);
-            c.setText(res);
-            c.setOnClickListener(v -> {
-                taskInput.setText(((Chip) v).getText());
-                taskInput.setSelection(taskInput.length());
-            });
-            suggestions.addView(c);
-        }
 
         RecyclerView list = findViewById(R.id.history);
         list.setLayoutManager(new LinearLayoutManager(this));
@@ -137,8 +129,41 @@ public class MainActivity extends AppCompatActivity implements RunState.Listener
         super.onResume();
         VoiceService.startIfEnabled(this);
         renderSetup();
+        renderSuggestions();
         RunState.subscribe(this);
         loadHistory();
+    }
+
+    /** Saved skills first (they replay without model calls), then the built-in examples. */
+    private void renderSuggestions() {
+        ChipGroup suggestions = findViewById(R.id.suggestions);
+        suggestions.removeAllViews();
+        List<String> seen = new ArrayList<>();
+        int skills = 0;
+        for (Skill sk : SkillStore.list(this)) {
+            if (!sk.enabled || skills == MAX_SKILL_CHIPS) continue;
+            addSuggestion(suggestions, sk.task, true);
+            seen.add(Skill.normalize(sk.task));
+            skills++;
+        }
+        for (int res : new int[]{R.string.suggest_battery, R.string.suggest_wifi, R.string.suggest_storage}) {
+            String text = getString(res);
+            if (!seen.contains(Skill.normalize(text))) addSuggestion(suggestions, text, false);
+        }
+    }
+
+    private void addSuggestion(ChipGroup group, String text, boolean skill) {
+        Chip c = new Chip(this);
+        c.setText(text);
+        if (skill) {
+            c.setChipIcon(getDrawable(R.drawable.ic_replay));
+            c.setChipIconTintResource(R.color.brand);
+        }
+        c.setOnClickListener(v -> {
+            taskInput.setText(text);
+            taskInput.setSelection(taskInput.length());
+        });
+        group.addView(c);
     }
 
     @Override

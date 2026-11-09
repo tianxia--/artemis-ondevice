@@ -48,6 +48,11 @@ final class Observation {
     long elapsedMs;
 
     static Observation capture(AgentAccessibilityService service) {
+        return capture(service, true);
+    }
+
+    /** Without a screenshot only the element list is read (skill replay needs nothing else). */
+    static Observation capture(AgentAccessibilityService service, boolean screenshot) {
         long t0 = System.currentTimeMillis();
         Observation o = new Observation();
         o.packageName = service.currentPackage();
@@ -56,9 +61,9 @@ final class Observation {
         final AtomicInteger err = new AtomicInteger();
         final CountDownLatch latch = new CountDownLatch(1);
         // The floating bubble must not appear in what the model sees.
-        FloatingBubble bubble = service.bubble();
+        FloatingBubble bubble = screenshot ? service.bubble() : null;
         if (bubble != null) bubble.hideForCapture();
-        requestShot(service, bmp, err, latch, true);
+        if (screenshot) requestShot(service, bmp, err, latch, true);
 
         android.graphics.Rect screen = service.getSystemService(android.view.WindowManager.class)
                 .getMaximumWindowMetrics().getBounds();
@@ -67,6 +72,11 @@ final class Observation {
         UiTree.Result tree = UiTree.collect(service, screen, MAX_ELEMENTS);
         o.elements.addAll(tree.elements);
         o.droppedElements = tree.dropped;
+        if (!screenshot) {
+            o.screenshotError = "not requested";
+            o.elapsedMs = System.currentTimeMillis() - t0;
+            return o;
+        }
 
         try {
             latch.await(3000, TimeUnit.MILLISECONDS);

@@ -7,8 +7,13 @@ All notable changes to this project are listed here. The format follows
 ## [Unreleased]
 
 ### Added
+- Skills (record and replay): save a completed run as a skill from the run details menu. The same task then replays the recorded steps without model calls and ends with one model call that checks the screen and answers; if a recorded target is missing, the model takes over from there. Skills are listed in Settings (rename, delete, turn off) and shown first among the home suggestions.
 - GitHub Actions: build on every push and pull request; build, sign and publish the APK when a `v*` tag is pushed.
 - Issue and pull request templates, contributing guide and this changelog.
+
+### Fixed
+- A run could wait forever when it started while another app was already open behind ours: the screen hold now also ends when our last screen pauses.
+- Model timing metrics ignore replayed steps.
 
 ## [0.1.0] - 2026-11-09
 

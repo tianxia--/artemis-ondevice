@@ -30,6 +30,10 @@ final class RunRecord {
         String app = "";
         String reasoning = "";
         List<String> actions = new ArrayList<>();
+        /** Successful actions in replayable form (see {@link Skill#action}); a skill is built from these. */
+        List<JSONObject> replay = new ArrayList<>();
+        /** Done by replaying a saved skill, without a model call. */
+        boolean replayed;
         boolean failedAction;
         boolean hasScreenshot;
 
@@ -38,10 +42,13 @@ final class RunRecord {
         JSONObject toJson() throws Exception {
             JSONArray a = new JSONArray();
             for (String s : actions) a.put(s);
+            JSONArray rp = new JSONArray();
+            for (JSONObject r : replay) rp.put(r);
             return new JSONObject().put("index", index).put("offset_ms", offsetMs)
                     .put("obs_ms", obsMs).put("llm_ms", llmMs).put("act_ms", actMs)
                     .put("prompt_tokens", promptTokens).put("completion_tokens", completionTokens)
-                    .put("app", app).put("reasoning", reasoning).put("actions", a)
+                    .put("app", app).put("reasoning", reasoning).put("actions", a).put("replay", rp)
+                    .put("replayed", replayed)
                     .put("failed_action", failedAction).put("has_screenshot", hasScreenshot);
         }
 
@@ -58,6 +65,9 @@ final class RunRecord {
             s.reasoning = o.optString("reasoning");
             JSONArray a = o.optJSONArray("actions");
             if (a != null) for (int i = 0; i < a.length(); i++) s.actions.add(a.optString(i));
+            JSONArray rp = o.optJSONArray("replay");
+            if (rp != null) for (int i = 0; i < rp.length(); i++) s.replay.add(rp.optJSONObject(i));
+            s.replayed = o.optBoolean("replayed");
             s.failedAction = o.optBoolean("failed_action");
             s.hasScreenshot = o.optBoolean("has_screenshot");
             return s;
@@ -74,6 +84,8 @@ final class RunRecord {
     volatile long endedAt;
     volatile String status = RUNNING;
     volatile String answer = "";
+    /** The saved skill this run replayed first, or "". */
+    String skillId = "";
     final List<Step> steps = new CopyOnWriteArrayList<>();
 
     static RunRecord start(String task, String providerId, String model, int maxSteps, boolean screenshot) {
@@ -103,6 +115,8 @@ final class RunRecord {
     int promptTokens() { int t = 0; for (Step s : steps) t += s.promptTokens; return t; }
     int completionTokens() { int t = 0; for (Step s : steps) t += s.completionTokens; return t; }
     int failedActions() { int n = 0; for (Step s : steps) if (s.failedAction) n++; return n; }
+    int replayedSteps() { int n = 0; for (Step s : steps) if (s.replayed) n++; return n; }
+    boolean hasReplayableActions() { for (Step s : steps) if (!s.replay.isEmpty()) return true; return false; }
 
     long avgStepMs() { return steps.isEmpty() ? 0 : durationMs() / steps.size(); }
     long medianStepMs() { List<Long> v = new ArrayList<>(); for (Step s : steps) v.add(s.totalMs()); return pct(v, 50); }
@@ -113,7 +127,8 @@ final class RunRecord {
     long avgActMs() { long t = 0; for (Step s : steps) t += s.actMs; return steps.isEmpty() ? 0 : t / steps.size(); }
     long totalLlmMs() { long t = 0; for (Step s : steps) t += s.llmMs; return t; }
 
-    private List<Long> llm() { List<Long> v = new ArrayList<>(); for (Step s : steps) v.add(s.llmMs); return v; }
+    /** Model latencies of the steps that called the model (replayed steps did not). */
+    private List<Long> llm() { List<Long> v = new ArrayList<>(); for (Step s : steps) if (!s.replayed) v.add(s.llmMs); return v; }
 
     /** Nearest-rank percentile. */
     private static long pct(List<Long> v, int p) {
@@ -132,7 +147,7 @@ final class RunRecord {
         return new JSONObject().put("id", id).put("task", task).put("provider", providerId)
                 .put("model", model).put("max_steps", maxSteps).put("screenshot", screenshot)
                 .put("started_at", startedAt).put("ended_at", endedAt)
-                .put("status", status).put("answer", answer).put("steps", st);
+                .put("status", status).put("answer", answer).put("skill", skillId).put("steps", st);
     }
 
     static RunRecord fromJson(JSONObject o) {
@@ -147,6 +162,7 @@ final class RunRecord {
         r.endedAt = o.optLong("ended_at");
         r.status = o.optString("status", ERROR);
         r.answer = o.optString("answer");
+        r.skillId = o.optString("skill");
         JSONArray st = o.optJSONArray("steps");
         if (st != null) for (int i = 0; i < st.length(); i++) r.steps.add(Step.fromJson(st.optJSONObject(i)));
         // A run that was still "running" when the process died never finished.

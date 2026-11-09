@@ -85,6 +85,10 @@ final class FlashLoop {
         return task != null && BLOCKED_IN_TASK.matcher(task).find();
     }
 
+    /** How long replay waits for a recorded target to appear (the screen may still be moving). */
+    private static final long REPLAY_FIND_MS = 4000;
+    private static final long REPLAY_POLL_MS = 250;
+
     private static final String CLIPBOARD_HANDOFF =
             "The text is now on the clipboard: long-press the input field, tap Paste (粘贴), and check the field before sending.";
 
@@ -96,14 +100,18 @@ final class FlashLoop {
     private final ChatClient client;
     private final RunRecord run;
     private final StopSignal stop;
+    /** Saved skill to replay before the model takes over, or null. */
+    private final Skill skill;
+    private boolean replayComplete;
     private final Deque<String> history = new ArrayDeque<>();
     private final Deque<String> recentStates = new ArrayDeque<>();
 
-    FlashLoop(Context ctx, ChatClient client, RunRecord run, StopSignal stop) {
+    FlashLoop(Context ctx, ChatClient client, RunRecord run, StopSignal stop, Skill skill) {
         this.ctx = ctx;
         this.client = client;
         this.run = run;
         this.stop = stop;
+        this.skill = skill;
     }
 
     void run() {
@@ -119,7 +127,11 @@ final class FlashLoop {
             return;
         }
         try {
-            for (int step = 1; run.maxSteps <= 0 || step <= run.maxSteps; step++) {
+            if (skill != null) nudge = replay();
+            // Replayed steps cost no model call and do not count against the step cap.
+            int replayed = run.steps.size();
+            for (int turn = 1; run.maxSteps <= 0 || turn <= run.maxSteps; turn++) {
+                int step = replayed + turn;
                 if (stop.stopped()) break;
                 AgentAccessibilityService a11y = AgentAccessibilityService.get();
                 if (a11y == null) {
@@ -127,7 +139,7 @@ final class FlashLoop {
                     answer = "The accessibility service is off. Turn on Artemis On-Device in Accessibility settings.";
                     break;
                 }
-                boolean finalTurn = run.maxSteps > 0 && step == run.maxSteps;
+                boolean finalTurn = run.maxSteps > 0 && turn == run.maxSteps;
                 waitWhilePaused();
                 long t0 = System.currentTimeMillis();
                 RunState.phase(RunState.Phase.OBSERVING);
@@ -178,8 +190,13 @@ final class FlashLoop {
                         break;
                     }
                     String outcome = execute(a11y, obs, call);
-                    if (outcome.contains("FAILED")) rec.failedAction = true;
-                    else okActions++;
+                    if (outcome.contains("FAILED")) {
+                        rec.failedAction = true;
+                    } else {
+                        okActions++;
+                        JSONObject replayable = Skill.action(obs, call, outcome);
+                        if (replayable != null) rec.replay.add(replayable);
+                    }
                     rec.actions.add(outcome);
                 }
                 long tAct = System.currentTimeMillis();
@@ -236,11 +253,94 @@ final class FlashLoop {
             }
         }
         if (RunRecord.STOPPED.equals(status) && answer.isEmpty()) answer = ctx.getString(R.string.stopped_by_you);
+        if (skill != null && !RunRecord.STOPPED.equals(status)) {
+            SkillStore.recordOutcome(ctx, skill.id, replayComplete && RunRecord.COMPLETED.equals(status));
+        }
         run.answer = answer;
         run.endedAt = System.currentTimeMillis();
         run.status = status;
         Log.i(AgentService.TAG, String.format(Locale.US, "run %s: %s | %d steps | %.1fs | tokens %d/%d",
                 run.id, status, run.steps.size(), run.durationMs() / 1000f, run.promptTokens(), run.completionTokens()));
+    }
+
+    // ------------------------------------------------------------------ skill replay
+
+    /**
+     * Replays the skill's actions without model calls, each one recorded as a step. Stops at the
+     * first action whose app or target is not on screen, or that fails; the model then carries on
+     * from there. Returns the notice for the model's first turn.
+     */
+    private String replay() throws InterruptedException {
+        run.skillId = skill.id;
+        int total = skill.actions.size();
+        for (int i = 0; i < total; i++) {
+            if (stop.stopped()) return null;
+            waitWhilePaused();
+            AgentAccessibilityService a11y = AgentAccessibilityService.get();
+            if (a11y == null) return null;
+            JSONObject act = skill.actions.get(i);
+            long t0 = System.currentTimeMillis();
+            RunState.phase(RunState.Phase.OBSERVING);
+            Observation obs;
+            int index;
+            boolean appOk;
+            long deadline = t0 + REPLAY_FIND_MS;
+            while (true) {
+                obs = Observation.capture(a11y, false);
+                index = Skill.find(obs, act);
+                appOk = !Skill.needsApp(act) || act.optString("app").equals(obs.packageName);
+                if ((appOk && index != Skill.NOT_FOUND) || System.currentTimeMillis() > deadline) break;
+                Thread.sleep(REPLAY_POLL_MS);
+            }
+            if (BLOCKED_APPS.contains(obs.packageName)) return null;
+            if (!appOk || index == Skill.NOT_FOUND) {
+                Log.i(AgentService.TAG, "replay: step " + (i + 1) + "/" + total + " target not on screen; model takes over");
+                return replayNotice(i, total, !appOk
+                        ? "the screen is in " + obs.packageName + ", the recorded step expected " + act.optString("app")
+                        : "the recorded target '" + clip(act.optString("key"), 60) + "' is not on screen");
+            }
+            long tObs = System.currentTimeMillis();
+            RunState.phase(RunState.Phase.ACTING);
+            ChatClient.ToolCall call;
+            try {
+                call = Skill.toCall(act, index);
+            } catch (Exception e) {
+                return replayNotice(i, total, "the recorded step is unreadable");
+            }
+            String outcome = execute(a11y, obs, call);
+            RunRecord.Step rec = new RunRecord.Step();
+            rec.index = run.steps.size() + 1;
+            rec.offsetMs = t0 - run.startedAt;
+            rec.app = obs.packageName;
+            rec.replayed = true;
+            rec.obsMs = tObs - t0;
+            rec.actMs = System.currentTimeMillis() - tObs;
+            rec.actions.add(outcome);
+            boolean failed = outcome.contains("FAILED");
+            if (failed) {
+                rec.failedAction = true;
+            } else {
+                JSONObject again = Skill.action(obs, call, outcome);
+                if (again != null) rec.replay.add(again);
+            }
+            run.steps.add(rec);
+            RunState.stepAdded();
+            saveProgress();
+            remember(rec);
+            Log.i(AgentService.TAG, String.format(Locale.US, "#%d replay obs %dms act %dms | %s",
+                    rec.index, rec.obsMs, rec.actMs, call.name));
+            if (failed) return replayNotice(i + 1, total, "the replayed action failed");
+        }
+        replayComplete = true;
+        return "[REPLAY] Steps 1-" + total + " replayed a saved skill for this objective, without model calls. "
+                + "Check the current screen: if it shows the objective is achieved, call finish with the answer; "
+                + "otherwise continue the task from here.";
+    }
+
+    private static String replayNotice(int done, int total, String reason) {
+        return "[REPLAY] " + (done == 0 ? "No step" : "Steps 1-" + done) + " of a saved " + total
+                + "-step skill for this objective could be replayed (" + reason + "). "
+                + "Continue the task from the current screen.";
     }
 
     /**
@@ -331,7 +431,7 @@ final class FlashLoop {
 
     private void remember(RunRecord.Step s) {
         history.addLast("Step " + s.index + " [" + clock(run.startedAt + s.offsetMs) + "] (" + s.app + "): "
-                + clip(s.reasoning, 300) + " -> "
+                + (s.replayed ? "(replayed from a saved skill)" : clip(s.reasoning, 300)) + " -> "
                 + (s.actions.isEmpty() ? "(no tool call)" : TextUtils.join(" ; ", s.actions)));
         while (history.size() > HISTORY_STEPS) history.removeFirst();
     }

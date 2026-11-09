@@ -42,6 +42,9 @@ history and only the latest screenshot is sent.
 - **Run details**: result, total and per-step time, model median / P90 / max, model share of time,
   screen-read and action averages, tokens in / out, failed actions, a per-step timing chart and
   the step-by-step record.
+- **Skills (record and replay)**: save a completed run as a skill; the same task then replays the
+  recorded steps without model calls, with one final model call to check the screen and answer.
+  If a recorded target is missing, the model takes over from there.
 - **Model services**: built-in presets or a custom OpenAI-compatible / Anthropic endpoint. The
   model list can be fetched from the service, and the connection can be tested.
 - **Privacy**: API keys are encrypted with an Android Keystore AES-GCM key and never logged. The

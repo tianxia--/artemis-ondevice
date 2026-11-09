@@ -1,6 +1,9 @@
 package com.artemis.ondevice;
 
 import android.accessibilityservice.AccessibilityService;
+import android.app.Activity;
+import android.app.Application;
+import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
@@ -19,6 +22,34 @@ public class AgentAccessibilityService extends AccessibilityService {
     private volatile String currentPackage = "";
     private volatile FloatingBubble bubble;
     private final Handler main = new Handler(Looper.getMainLooper());
+    /** Our activities in the resumed state (main thread). */
+    private int resumedScreens;
+
+    /**
+     * Our own screens report when they come and go. Window events alone are not enough: moving
+     * our task back can uncover an app that was already open without any window-state event,
+     * which left a run held by our screen forever.
+     */
+    private final Application.ActivityLifecycleCallbacks screens = new Application.ActivityLifecycleCallbacks() {
+        @Override public void onActivityResumed(Activity a) {
+            resumedScreens++;
+            setOurScreen(true);
+        }
+        @Override public void onActivityPaused(Activity a) {
+            resumedScreens = Math.max(0, resumedScreens - 1);
+            if (resumedScreens == 0) {
+                AccessibilityNodeInfo root = getRootInActiveWindow();
+                CharSequence pkg = root == null ? null : root.getPackageName();
+                if (pkg != null && !getPackageName().contentEquals(pkg)) currentPackage = pkg.toString();
+                setOurScreen(false);
+            }
+        }
+        @Override public void onActivityCreated(Activity a, Bundle b) {}
+        @Override public void onActivityStarted(Activity a) {}
+        @Override public void onActivityStopped(Activity a) {}
+        @Override public void onActivitySaveInstanceState(Activity a, Bundle b) {}
+        @Override public void onActivityDestroyed(Activity a) {}
+    };
 
     static AgentAccessibilityService get() {
         return instance;
@@ -50,6 +81,7 @@ public class AgentAccessibilityService extends AccessibilityService {
     protected void onServiceConnected() {
         super.onServiceConnected();
         instance = this;
+        getApplication().registerActivityLifecycleCallbacks(screens);
         Log.i(AgentService.TAG, "accessibility service connected");
         main.post(new Runnable() {
             @Override public void run() { applyBubbleSetting(); }
@@ -69,10 +101,16 @@ public class AgentAccessibilityService extends AccessibilityService {
         boolean ourScreen = ours && ourAppWindowActive();
         if (ours && !ourScreen) return;
         currentPackage = pkg;
-        // While our own screens are in front the run holds: the agent must not act on them, and
-        // the user is looking at (or stopping) the run. The bubble would only cover them.
-        RunState.setHold(RunState.Hold.APP_SCREEN, ourScreen);
-        if (bubble != null) bubble.setSuppressed(ourScreen);
+        setOurScreen(ourScreen);
+    }
+
+    /**
+     * While our own screens are in front the run holds: the agent must not act on them, and the
+     * user is looking at (or stopping) the run. The bubble would only cover them.
+     */
+    private void setOurScreen(boolean ours) {
+        RunState.setHold(RunState.Hold.APP_SCREEN, ours);
+        if (bubble != null) bubble.setSuppressed(ours);
     }
 
     private boolean ourAppWindowActive() {
@@ -89,6 +127,7 @@ public class AgentAccessibilityService extends AccessibilityService {
 
     @Override
     public void onDestroy() {
+        getApplication().unregisterActivityLifecycleCallbacks(screens);
         if (bubble != null) {
             bubble.remove();
             bubble = null;
