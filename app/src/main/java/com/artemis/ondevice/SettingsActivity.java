@@ -16,6 +16,8 @@ import android.widget.Toast;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.app.AppCompatDelegate;
+import androidx.core.os.LocaleListCompat;
 
 import com.google.android.material.appbar.MaterialToolbar;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
@@ -94,6 +96,8 @@ public class SettingsActivity extends AppCompatActivity {
             if (s != null) s.applyBubbleSetting();
         });
 
+        setupLanguage();
+
         MaterialSwitch voice = findViewById(R.id.switch_voice);
         voice.setChecked(VoiceService.canRun(this));
         ActivityResultLauncher<String> micPermission = registerForActivityResult(
@@ -117,6 +121,25 @@ public class SettingsActivity extends AppCompatActivity {
                 micPermission.launch(Manifest.permission.RECORD_AUDIO);
             }
         });
+    }
+
+    /** Language tags in picker order; "" follows the system language. */
+    private static final String[] LANGUAGE_TAGS = {"", "zh-CN", "en"};
+
+    private void setupLanguage() {
+        String[] labels = {getString(R.string.language_system), getString(R.string.language_zh),
+                getString(R.string.language_en)};
+        String current = AppCompatDelegate.getApplicationLocales().toLanguageTags();
+        int selected = 0;
+        for (int i = 1; i < LANGUAGE_TAGS.length; i++) {
+            if (current.startsWith(LANGUAGE_TAGS[i].substring(0, 2))) selected = i;
+        }
+        MaterialAutoCompleteTextView picker = findViewById(R.id.language);
+        picker.setSimpleItems(labels);
+        picker.setText(labels[selected], false);
+        // Recreates the open activities in the new language.
+        picker.setOnItemClickListener((parent, view, position, id) -> AppCompatDelegate.setApplicationLocales(
+                LocaleListCompat.forLanguageTags(LANGUAGE_TAGS[position])));
     }
 
     @Override

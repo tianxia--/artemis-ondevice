@@ -25,6 +25,7 @@
         android:label="@string/app_name"
         android:theme="@style/Theme.Artemis"
         android:usesCleartextTraffic="true"
+        android:localeConfig="@xml/locales_config"
         android:supportsRtl="true">
 
         <activity
@@ -87,6 +88,16 @@
                 <action android:name="com.artemis.ondevice.IMPORT_PROVIDER" />
             </intent-filter>
         </receiver>
+
+        <!-- Keeps the in-app language choice on Android 12 and below (AppCompatDelegate.setApplicationLocales). -->
+        <service
+            android:name="androidx.appcompat.app.AppLocalesMetadataHolderService"
+            android:enabled="false"
+            android:exported="false">
+            <meta-data
+                android:name="autoStoreLocales"
+                android:value="true" />
+        </service>
 
     </application>
 

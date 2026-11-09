@@ -2,6 +2,7 @@ package com.artemis.ondevice;
 
 import android.content.ClipData;
 import android.content.ClipboardManager;
+import android.graphics.drawable.Drawable;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -13,9 +14,12 @@ import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.google.android.material.appbar.MaterialToolbar;
+import com.google.android.material.button.MaterialButton;
 import com.google.android.material.chip.Chip;
 import com.google.android.material.chip.ChipGroup;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
+import com.google.android.material.progressindicator.CircularProgressIndicatorSpec;
+import com.google.android.material.progressindicator.IndeterminateDrawable;
 import com.google.android.material.textfield.MaterialAutoCompleteTextView;
 import com.google.android.material.textfield.TextInputEditText;
 import com.google.android.material.textfield.TextInputLayout;
@@ -44,6 +48,9 @@ public class ProviderEditActivity extends AppCompatActivity {
     private MaterialAutoCompleteTextView api;
     private ChipGroup modelChips;
     private TextView testResult;
+    private MaterialButton fetchButton, testButton;
+    /** A fetch or test request is in flight; both buttons stay disabled until it ends. */
+    private boolean busy;
 
     @Override
     protected void onCreate(Bundle state) {
@@ -64,6 +71,8 @@ public class ProviderEditActivity extends AppCompatActivity {
         modelChips = findViewById(R.id.model_chips);
         modelInput = findViewById(R.id.model_input);
         testResult = findViewById(R.id.test_result);
+        fetchButton = findViewById(R.id.fetch_models);
+        testButton = findViewById(R.id.test);
         api.setSimpleItems(ProviderStore.API_TYPES);
         api.setText(ProviderStore.API_OPENAI, false);
 
@@ -102,8 +111,8 @@ public class ProviderEditActivity extends AppCompatActivity {
             modelInput.setText("");
             return true;
         });
-        findViewById(R.id.fetch_models).setOnClickListener(v -> fetchModels());
-        findViewById(R.id.test).setOnClickListener(v -> test());
+        fetchButton.setOnClickListener(v -> fetchModels());
+        testButton.setOnClickListener(v -> test());
         findViewById(R.id.save).setOnClickListener(v -> save());
     }
 
@@ -210,7 +219,22 @@ public class ProviderEditActivity extends AppCompatActivity {
                 .show();
     }
 
+    /** Disables both network buttons and swaps the clicked one's icon for a spinner; null re-enables them. */
+    private void setBusy(MaterialButton active) {
+        busy = active != null;
+        fetchButton.setEnabled(!busy);
+        testButton.setEnabled(!busy);
+        fetchButton.setIcon(getDrawable(R.drawable.ic_refresh));
+        testButton.setIcon(null);
+        if (active == null) return;
+        CircularProgressIndicatorSpec spec = new CircularProgressIndicatorSpec(this, null, 0,
+                com.google.android.material.R.style.Widget_Material3_CircularProgressIndicator_ExtraSmall);
+        Drawable spinner = IndeterminateDrawable.createCircularDrawable(this, spec);
+        active.setIcon(spinner);
+    }
+
     private void fetchModels() {
+        if (busy) return;
         final ProviderStore.Provider p;
         try {
             p = fromForm();
@@ -218,7 +242,8 @@ public class ProviderEditActivity extends AppCompatActivity {
             Toast.makeText(this, e.getMessage(), Toast.LENGTH_LONG).show();
             return;
         }
-        Toast.makeText(this, R.string.fetching, Toast.LENGTH_SHORT).show();
+        setBusy(fetchButton);
+        fetchButton.setText(R.string.fetching);
         io.execute(() -> {
             String msg;
             List<String> ids = null;
@@ -232,6 +257,8 @@ public class ProviderEditActivity extends AppCompatActivity {
             final String out = msg;
             main.post(() -> {
                 if (isDestroyed()) return;
+                setBusy(null);
+                fetchButton.setText(R.string.fetch_models);
                 if (got != null) for (String m : got) addModel(m);
                 Toast.makeText(this, out, Toast.LENGTH_LONG).show();
             });
@@ -239,6 +266,7 @@ public class ProviderEditActivity extends AppCompatActivity {
     }
 
     private void test() {
+        if (busy) return;
         final ProviderStore.Provider p;
         try {
             p = fromForm();
@@ -254,6 +282,7 @@ public class ProviderEditActivity extends AppCompatActivity {
         testResult.setVisibility(View.VISIBLE);
         testResult.setTextColor(getColor(R.color.text_secondary));
         testResult.setText(R.string.testing);
+        setBusy(testButton);
         io.execute(() -> {
             String msg;
             boolean ok;
@@ -270,6 +299,7 @@ public class ProviderEditActivity extends AppCompatActivity {
             final boolean success = ok;
             main.post(() -> {
                 if (isDestroyed()) return;
+                setBusy(null);
                 testResult.setText(out);
                 testResult.setTextColor(getColor(success ? R.color.success : R.color.danger));
             });

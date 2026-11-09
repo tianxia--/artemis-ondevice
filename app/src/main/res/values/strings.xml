@@ -116,6 +116,10 @@
     <string name="badge_active">使用中</string>
     <string name="key_stored">已保存密钥</string>
     <string name="key_missing">未设置密钥</string>
+    <string name="section_language">语言</string>
+    <string name="language_system">跟随系统</string>
+    <string name="language_zh" translatable="false">简体中文</string>
+    <string name="language_en" translatable="false">English</string>
 
     <!-- Provider edit -->
     <string name="provider_add_title">添加模型服务</string>

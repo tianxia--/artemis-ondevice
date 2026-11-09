@@ -1,0 +1,162 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="accessibility_service_description">Lets the Artemis agent on this phone read the screen, take screenshots, and tap, swipe and type for tasks you start in Artemis. It opens no network ports and only sends screenshots and UI elements to the model service you configure.</string>
+
+    <!-- Home -->
+    <string name="home_greeting">What can I do on your phone?</string>
+    <string name="task_hint">Describe a task, e.g. open Settings and tell me the battery level</string>
+    <string name="action_start">Start</string>
+    <string name="action_stop">Stop</string>
+    <string name="action_details">Details</string>
+    <string name="action_new_task">New task</string>
+    <string name="action_rerun">Run again</string>
+    <string name="action_settings">Settings</string>
+    <string name="action_clear">Clear</string>
+    <string name="action_enable">Turn on</string>
+    <string name="action_add_model">Add model</string>
+    <string name="suggest_battery">Open Settings and tell me the battery level</string>
+    <string name="suggest_wifi">Open Settings and check the connected Wi-Fi</string>
+    <string name="suggest_storage">Open Settings and tell me the free storage</string>
+    <string name="section_recent">Recent tasks</string>
+    <string name="section_overview">Overview</string>
+    <string name="empty_history">No tasks yet. Type one to get started.</string>
+    <string name="setup_title">One more step</string>
+    <string name="setup_a11y">Turn on the \"Artemis On-Device\" accessibility service so the agent can see the screen and use the phone</string>
+    <string name="setup_model">Add a model service (OpenAI-compatible or Anthropic)</string>
+    <string name="overview_runs">Tasks</string>
+    <string name="overview_success">Success rate</string>
+    <string name="overview_step">Avg per step</string>
+    <string name="model_none">No model selected</string>
+    <string name="live_title">Running</string>
+    <string name="confirm_clear_history">Clear all task records and screenshots?</string>
+    <string name="toast_enter_task">Enter a task first</string>
+    <string name="toast_running">A task is already running</string>
+
+    <!-- Status -->
+    <string name="status_running">Running</string>
+    <string name="status_completed">Completed</string>
+    <string name="status_failed">Not completed</string>
+    <string name="status_stopped">Stopped</string>
+    <string name="status_error">Error</string>
+    <string name="status_starting">Starting…</string>
+    <string name="status_progress">Step %1$d · %2$s</string>
+    <string name="status_paused_app">Step %d · Paused (resumes when you leave this app)</string>
+    <string name="status_paused">Step %d · Paused (close the panel to resume)</string>
+    <string name="phase_observing">Reading screen</string>
+    <string name="phase_thinking">Model thinking</string>
+    <string name="phase_acting">Acting</string>
+    <string name="phase_idle">Idle</string>
+    <string name="n_steps">%d steps</string>
+    <string name="no_answer">(no answer)</string>
+    <string name="stopped_by_you">Stopped by you.</string>
+    <string name="stopped_no_progress">Stopped automatically, no progress: the same action on the same screen repeated %2$d times in the last %1$d steps.</string>
+    <string name="stopped_failures">Stopped automatically: actions failed %1$d steps in a row.</string>
+    <string name="channel_running">Task running</string>
+    <string name="channel_done">Task finished</string>
+    <string name="error_no_model">No model selected. Add a model service in Settings.</string>
+
+    <!-- Bubble -->
+    <string name="bubble_idle_hint">Tap \"New task\" to enter what to do; while it runs you can check progress or stop it here.</string>
+    <string name="bubble_first_step">Reading the screen…</string>
+    <string name="bubble_meta">%1$s · %2$d steps · %3$s tokens</string>
+
+    <!-- Run detail -->
+    <string name="detail_title">Task details</string>
+    <string name="detail_answer">Result</string>
+    <string name="detail_metrics">Metrics</string>
+    <string name="detail_timeline">Time per step</string>
+    <string name="detail_steps">Steps</string>
+    <string name="metric_total">Total time</string>
+    <string name="metric_steps">Steps</string>
+    <string name="metric_avg_step">Avg per step</string>
+    <string name="metric_median_step">Median per step</string>
+    <string name="metric_llm">Model median / P90</string>
+    <string name="metric_llm_share">Model share of time</string>
+    <string name="metric_obs">Screenshot + UI tree avg</string>
+    <string name="metric_act">Action avg</string>
+    <string name="metric_tokens">Tokens in / out</string>
+    <string name="metric_tokens_total">Tokens total</string>
+    <string name="metric_failed_actions">Failed actions</string>
+    <string name="metric_llm_max">Slowest model call</string>
+    <string name="step_short">Step %d</string>
+    <string name="legend_obs">Read</string>
+    <string name="legend_llm">Model</string>
+    <string name="legend_act">Action</string>
+    <string name="step_title">Step %1$d · T+%2$s</string>
+    <string name="step_timing">Read %1$s · Model %2$s · Action %3$s · ↑%4$s ↓%5$s</string>
+    <string name="copied">Copied</string>
+    <string name="action_copy">Copy result</string>
+    <string name="action_delete">Delete record</string>
+    <string name="confirm_delete_run">Delete this task record?</string>
+    <string name="run_not_found">Record not found</string>
+
+    <!-- Settings -->
+    <string name="settings_title">Settings</string>
+    <string name="section_models">Model services</string>
+    <string name="section_active_model">In use</string>
+    <string name="section_run">Run</string>
+    <string name="section_permissions">Permissions</string>
+    <string name="section_data">Data</string>
+    <string name="label_provider">Service</string>
+    <string name="label_model">Model</string>
+    <string name="add_provider">Add model service</string>
+    <string name="max_steps">Max steps</string>
+    <string name="max_steps_hint">0 means no limit (the default); you can stop at any time</string>
+    <string name="setting_screenshot">Send screenshots</string>
+    <string name="setting_screenshot_hint">When off, only the UI element list is sent (for models without image input)</string>
+    <string name="setting_bubble">Floating bubble</string>
+    <string name="setting_bubble_hint">Shows progress on any screen, stops tasks and starts new ones</string>
+    <string name="perm_a11y">Accessibility service</string>
+    <string name="perm_on">On</string>
+    <string name="perm_off">Off</string>
+    <string name="clear_history">Clear task records</string>
+    <string name="n_models">%d models</string>
+    <string name="badge_active">In use</string>
+    <string name="key_stored">Key saved</string>
+    <string name="key_missing">No key</string>
+    <string name="section_language">Language</string>
+    <string name="language_system">System default</string>
+
+    <!-- Provider edit -->
+    <string name="provider_add_title">Add model service</string>
+    <string name="provider_edit_title">Edit model service</string>
+    <string name="preset">Preset</string>
+    <string name="preset_custom">Custom (OpenAI-compatible)</string>
+    <string name="provider_id">ID (lowercase letters, digits, - or _)</string>
+    <string name="provider_name">Display name</string>
+    <string name="base_url">Base URL (e.g. https://example.com/v1)</string>
+    <string name="api_type">API type</string>
+    <string name="api_key">API Key</string>
+    <string name="api_key_keep">API Key (saved; leave empty to keep it)</string>
+    <string name="paste">Paste</string>
+    <string name="clipboard_empty">The clipboard is empty</string>
+    <string name="models">Models</string>
+    <string name="model_add_hint">Type a model ID and press Enter to add it</string>
+    <string name="fetch_models">Fetch from service</string>
+    <string name="test_connection">Test connection</string>
+    <string name="testing">Testing…</string>
+    <string name="fetching">Fetching…</string>
+    <string name="save">Save</string>
+    <string name="delete">Delete</string>
+    <string name="cancel">Cancel</string>
+    <string name="confirm_delete_provider">Delete %s and its saved key?</string>
+    <string name="fetched_models">Fetched %d models</string>
+    <string name="need_model">Add at least one model</string>
+    <string name="test_ok">Connected · %1$s · %2$d ms</string>
+    <string name="test_failed">Connection failed: %s</string>
+
+    <!-- Voice control (VoiceService) -->
+    <string name="setting_voice">Voice wake-up</string>
+    <string name="setting_voice_hint">Say \"你好阿特\" to wake it, then say the task (Mandarin only). Recognition runs offline on the phone; the microphone stays on while enabled.</string>
+    <string name="voice_permission_denied">No microphone permission, so voice wake-up cannot be turned on</string>
+    <string name="channel_voice">Voice wake-up</string>
+    <string name="voice_title">Voice wake-up is on</string>
+    <string name="voice_waiting">Say \"%1$s\" to wake</string>
+    <string name="voice_listening">Listening…</string>
+    <string name="voice_correcting">Understanding…</string>
+    <string name="voice_confirming">Waiting for confirmation…</string>
+    <string name="voice_speaking">Speaking…</string>
+    <string name="voice_running">Running the task</string>
+    <string name="voice_failed">Voice wake-up error: %1$s</string>
+    <string name="blocked_app">To avoid account bans, Artemis does not operate WeChat, QQ or Alipay.</string>
+</resources>
