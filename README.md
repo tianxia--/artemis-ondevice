@@ -82,6 +82,16 @@ adb shell am broadcast -a com.artemis.ondevice.IMPORT_PROVIDER -n com.artemis.on
 - `adb shell am force-stop com.artemis.ondevice` turns the accessibility service off; run
   `scripts/dev-install.sh` again to turn it back on.
 
+## Commit checks
+
+`.githooks/` rejects commit messages with a co-author or "generated with" attribution line, and
+commits whose author or added lines match a pattern in `.git/info/blocked-patterns` (local, never
+pushed; one extended regex per line). Turn the hooks on once per clone:
+
+```bash
+git config core.hooksPath .githooks
+```
+
 ## Known limits
 
 - Screens with FLAG_SECURE (payments, passwords) give no screenshot; the model then only gets the

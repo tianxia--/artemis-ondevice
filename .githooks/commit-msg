@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# Rejects commit messages that carry an AI co-author or "generated with" attribution.
+set -euo pipefail
+if grep -v '^#' "$1" | grep -n -i -E '^co-authored-by:|generated with \[?claude' >&2; then
+    echo "commit-msg: remove the co-author / attribution line above; commits here carry none." >&2
+    exit 1
+fi

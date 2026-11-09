@@ -71,6 +71,16 @@ adb shell am broadcast -a com.artemis.ondevice.IMPORT_PROVIDER -n com.artemis.on
   `emulator -avd <name> -dns-server 8.8.8.8,1.1.1.1`。
 - `adb shell am force-stop com.artemis.ondevice` 会关闭无障碍服务，重新运行 `scripts/dev-install.sh` 即可恢复。
 
+## 提交检查
+
+`.githooks/` 会拒绝带协作者署名或「Generated with」署名的提交说明；作者信息或新增内容匹配
+`.git/info/blocked-patterns`（只在本地，不会推送；每行一个扩展正则）里的关键词时，也会拒绝提交。
+每次克隆后启用一次：
+
+```bash
+git config core.hooksPath .githooks
+```
+
 ## 已知限制
 
 - 设置了 FLAG_SECURE 的界面（支付、密码）无法截图，这时模型只能拿到元素列表。

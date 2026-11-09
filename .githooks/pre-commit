@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+# Rejects a commit whose author or staged changes match a blocked pattern.
+# Patterns (extended regex, one per line, case-insensitive) live in .git/info/blocked-patterns,
+# which is never pushed, so the patterns themselves stay private.
+set -euo pipefail
+PATTERNS="$(git rev-parse --git-dir)/info/blocked-patterns"
+[ -s "$PATTERNS" ] || exit 0
+
+blocked=0
+ident="$(git var GIT_AUTHOR_IDENT) / $(git var GIT_COMMITTER_IDENT)"
+if printf '%s\n' "$ident" | grep -q -i -E -f "$PATTERNS"; then
+    echo "pre-commit: author or committer matches a blocked pattern: $ident" >&2
+    blocked=1
+fi
+# Added lines only; binary files are skipped.
+hits="$(git diff --cached --no-color --unified=0 --text -- . ':!*.mp4' ':!*.jar' ':!*.png' \
+    | grep -E '^\+[^+]' | grep -n -i -E -f "$PATTERNS" || true)"
+if [ -n "$hits" ]; then
+    echo "pre-commit: staged changes match a blocked pattern:" >&2
+    printf '%s\n' "$hits" | cut -c1-160 >&2
+    blocked=1
+fi
+names="$(git diff --cached --name-only | grep -i -E -f "$PATTERNS" || true)"
+if [ -n "$names" ]; then
+    echo "pre-commit: file names match a blocked pattern:" >&2
+    printf '%s\n' "$names" >&2
+    blocked=1
+fi
+exit $blocked
