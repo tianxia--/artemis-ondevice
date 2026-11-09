@@ -95,6 +95,10 @@ adb shell am broadcast -a com.artemis.ondevice.IMPORT_PROVIDER -n com.artemis.on
 - `adb shell am force-stop com.artemis.ondevice` turns the accessibility service off; run
   `scripts/dev-install.sh` again to turn it back on.
 
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) and [CHANGELOG.md](CHANGELOG.md).
+
 ## Commit checks
 
 `.githooks/` rejects commit messages with a co-author or "generated with" attribution line, and

@@ -82,6 +82,10 @@ adb shell am broadcast -a com.artemis.ondevice.IMPORT_PROVIDER -n com.artemis.on
   `emulator -avd <name> -dns-server 8.8.8.8,1.1.1.1`。
 - `adb shell am force-stop com.artemis.ondevice` 会关闭无障碍服务，重新运行 `scripts/dev-install.sh` 即可恢复。
 
+## 参与贡献
+
+见 [CONTRIBUTING.md](CONTRIBUTING.md) 和 [CHANGELOG.md](CHANGELOG.md)。
+
 ## 提交检查
 
 `.githooks/` 会拒绝带协作者署名或「Generated with」署名的提交说明；作者信息或新增内容匹配

@@ -1,0 +1,56 @@
+name: Bug report / 问题反馈
+description: Something does not work as expected / 功能不符合预期
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please do not paste API keys, base URLs or personal information. Crop them out of screenshots.
+        请不要贴出 API Key、Base URL 或个人信息，截图里也请裁掉。
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened / 发生了什么
+      description: What you did, what you expected and what happened instead. / 你做了什么、期望什么、实际发生了什么。
+    validations:
+      required: true
+  - type: textarea
+    id: task
+    attributes:
+      label: Task and run details / 任务和执行记录
+      description: The task text, and the step where it went wrong (Run details > Steps). / 任务内容，以及出错的那一步（任务详情 > 执行过程）。
+  - type: input
+    id: app_version
+    attributes:
+      label: App version / 应用版本
+      placeholder: v0.1.0
+    validations:
+      required: true
+  - type: input
+    id: device
+    attributes:
+      label: Phone and Android version / 手机型号和 Android 版本
+      placeholder: Pixel 7 Pro, Android 15
+    validations:
+      required: true
+  - type: dropdown
+    id: api
+    attributes:
+      label: Model API type / 模型接口类型
+      options:
+        - openai-completions
+        - anthropic-messages
+        - Ollama (local / 本地)
+    validations:
+      required: true
+  - type: input
+    id: model
+    attributes:
+      label: Model / 模型
+      placeholder: e.g. gpt-4o, claude-sonnet-4-5, qwen2.5-vl
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / 日志
+      description: Optional. `adb logcat -s ArtemisAgent` only carries timings and action names. / 可选。`adb logcat -s ArtemisAgent` 只包含耗时和动作名称。
+      render: text
