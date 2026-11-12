@@ -179,7 +179,7 @@ public class RunDetailActivity extends AppCompatActivity implements RunState.Lis
         addMetric(grid, Format.tokens(r.promptTokens() + r.completionTokens()), R.string.metric_tokens_total);
         addMetric(grid, String.valueOf(r.failedActions()), R.string.metric_failed_actions);
         addMetric(grid, Format.seconds(r.maxLlmMs()), R.string.metric_llm_max);
-        String cost = Format.cost(ProviderStore.get(this, r.providerId), r.promptTokens(), r.completionTokens());
+        String cost = Format.cost(this, ProviderStore.get(this, r.providerId), r.model, r.promptTokens(), r.completionTokens());
         if (!cost.isEmpty()) addMetric(grid, cost, R.string.metric_cost);
         int replayed = r.replayedSteps();
         if (replayed > 0) addMetric(grid, replayed + " / " + r.steps.size(), R.string.metric_replayed);

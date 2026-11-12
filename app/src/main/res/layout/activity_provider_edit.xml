@@ -240,6 +240,13 @@
                 </com.google.android.material.textfield.TextInputLayout>
             </LinearLayout>
 
+            <TextView
+                android:id="@+id/price_matches"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:textAppearance="@style/TextAppearance.Artemis.Caption" />
+
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/test"
                 style="@style/Widget.Material3.Button.OutlinedButton"

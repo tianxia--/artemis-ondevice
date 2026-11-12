@@ -159,7 +159,27 @@ public class ProviderEditActivity extends AppCompatActivity {
         renderModels();
     }
 
+    /** Which models the bundled price table knows; a price typed above overrides it. */
+    private void renderPriceMatches() {
+        List<String> found = new ArrayList<>(), missing = new ArrayList<>();
+        for (ProviderStore.ModelSpec m : models) {
+            double[] p = Pricing.lookup(this, m.id);
+            if (p == null) missing.add(m.id);
+            else found.add(m.id + " $" + Pricing.money("", p[0]).replaceAll("0+$", "").replaceAll("\\.$", "")
+                    + " / $" + Pricing.money("", p[1]).replaceAll("0+$", "").replaceAll("\\.$", "")
+                    + " · " + Pricing.tableSource(this, m.id));
+        }
+        StringBuilder sb = new StringBuilder();
+        if (!found.isEmpty()) sb.append(getString(R.string.price_table_found, Pricing.tableDate(this), String.join("; ", found)));
+        if (!missing.isEmpty()) {
+            if (sb.length() > 0) sb.append('\n');
+            sb.append(getString(R.string.price_table_missing, String.join(", ", missing)));
+        }
+        ((TextView) findViewById(R.id.price_matches)).setText(sb.toString());
+    }
+
     private void renderModels() {
+        renderPriceMatches();
         modelChips.removeAllViews();
         for (final ProviderStore.ModelSpec m : models) {
             Chip c = new Chip(this);

@@ -20,12 +20,10 @@ final class Format {
         return String.format(Locale.US, "%.2fs", ms / 1000f);
     }
 
-    /** "$0.012" style; "" when the provider has no price. */
-    static String cost(ProviderStore.Provider p, long in, long out) {
-        if (p == null || !p.hasPrice()) return "";
-        double c = p.cost(in, out);
-        return p.currency + (c < 0.01 ? String.format(Locale.US, "%.4f", c) : c < 10
-                ? String.format(Locale.US, "%.3f", c) : String.format(Locale.US, "%.2f", c));
+    /** "$0.012" style; "" when no price is known for the model (see {@link Pricing}). */
+    static String cost(android.content.Context ctx, ProviderStore.Provider p, String model, long in, long out) {
+        Pricing.Price price = Pricing.of(ctx, p, model);
+        return price == null ? "" : Pricing.money(price.currency, price.cost(in, out));
     }
 
     static String tokens(long n) {

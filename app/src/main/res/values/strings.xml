@@ -256,11 +256,14 @@
     <string name="limit_run_reached">这个任务已经用了 %1$s tokens，达到单个任务的上限 %2$s，已停止。可以在 设置 > 模型用量与上限 里调整。</string>
     <string name="limit_daily_reached">今天已经用了 %1$s tokens，达到每日上限 %2$s，明天恢复。可以在 设置 > 模型用量与上限 里调整。</string>
     <string name="price_title">价格（选填）</string>
-    <string name="price_hint">填了以后，用量页和任务详情会显示估算花费。按服务商的定价填写每百万 tokens 的价格。</string>
+    <string name="price_hint">常见模型会自动按内置的 LiteLLM 价格表估算花费；在这里填了价格，就以你填的为准（对这个服务的所有模型生效）。</string>
     <string name="price_in">输入 / 百万</string>
     <string name="price_out">输出 / 百万</string>
     <string name="price_currency">货币</string>
     <string name="overview_tokens_today">今日 tokens</string>
     <string name="overview_cost_today">今日花费</string>
     <string name="overview_no_price">未填价格</string>
+    <string name="usage_table_prices">没有手动填价格的模型，按 LiteLLM 价格表（%s，美元）估算。</string>
+    <string name="price_table_found">价格表（LiteLLM，%1$s，每百万 tokens，最后是价格来源）：%2$s。如果模型是你自己部署的，这只是第三方的市场价，可以在上面填你自己的价格。</string>
+    <string name="price_table_missing">价格表里没有：%s。自己部署或不常见的模型需要在上面手动填价格。</string>
 </resources>

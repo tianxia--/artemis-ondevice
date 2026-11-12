@@ -80,12 +80,8 @@ final class ProviderStore {
         double priceIn, priceOut;
         String currency = "$";
 
+        /** A price entered by the user; it overrides the bundled table for all of this service's models. */
         boolean hasPrice() { return priceIn > 0 || priceOut > 0; }
-
-        /** Estimated cost of these tokens, or NaN when no price is set. */
-        double cost(long in, long out) {
-            return hasPrice() ? (in * priceIn + out * priceOut) / 1_000_000d : Double.NaN;
-        }
 
         JSONObject toJson() throws Exception {
             JSONArray ms = new JSONArray();

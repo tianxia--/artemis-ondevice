@@ -91,26 +91,14 @@ public class UsageActivity extends AppCompatActivity {
         }
 
         // Cost: only when every priced row shares one currency.
-        double cost = 0;
-        String currency = null;
-        boolean mixed = false, unpriced = false;
-        for (UsageStore.Row r : rows) {
-            ProviderStore.Provider p = providers.get(r.provider);
-            if (p == null || !p.hasPrice()) {
-                unpriced = true;
-                continue;
-            }
-            if (currency != null && !currency.equals(p.currency)) mixed = true;
-            currency = p.currency;
-            cost += p.cost(r.in, r.out);
-        }
+        Pricing.Total priced = Pricing.total(this, rows);
 
         GridLayout grid = findViewById(R.id.totals);
         grid.removeAllViews();
         metric(grid, String.valueOf(total.calls), getString(R.string.usage_calls));
         metric(grid, Format.tokens(total.tokens()), getString(R.string.metric_tokens_total));
         metric(grid, Format.tokens(total.in) + " / " + Format.tokens(total.out), getString(R.string.metric_tokens));
-        metric(grid, currency == null || mixed ? "–" : money(currency, cost), getString(R.string.usage_cost));
+        metric(grid, priced.text().isEmpty() ? "–" : priced.text(), getString(R.string.usage_cost));
 
         List<String> notes = new ArrayList<>();
         if (days == 1) {
@@ -120,8 +108,9 @@ public class UsageActivity extends AppCompatActivity {
                         Math.round(100f * total.tokens() / limit)));
             }
         }
-        if (unpriced && total.calls > 0) notes.add(getString(R.string.usage_unpriced));
-        if (mixed) notes.add(getString(R.string.usage_mixed_currency));
+        if (priced.unpriced) notes.add(getString(R.string.usage_unpriced));
+        if (priced.mixed) notes.add(getString(R.string.usage_mixed_currency));
+        if (priced.fromTable) notes.add(getString(R.string.usage_table_prices, Pricing.tableDate(this)));
         if (total.estimated > 0) notes.add(getString(R.string.usage_estimated, total.estimated));
         ((TextView) findViewById(R.id.usage_note)).setText(String.join("\n", notes));
 
@@ -129,7 +118,7 @@ public class UsageActivity extends AppCompatActivity {
         models.removeAllViews();
         for (UsageStore.Row r : byModel.values()) {
             ProviderStore.Provider p = providers.get(r.provider);
-            String c = Format.cost(p, r.in, r.out);
+            String c = Format.cost(this, p, r.model, r.in, r.out);
             row(models, r.model + " · " + (p == null || p.name.isEmpty() ? r.provider : p.name),
                     line(r) + (c.isEmpty() ? "" : " · " + c));
         }
@@ -165,10 +154,6 @@ public class UsageActivity extends AppCompatActivity {
         }
     }
 
-    private static String money(String currency, double c) {
-        return currency + (c < 0.01 ? String.format(java.util.Locale.US, "%.4f", c)
-                : String.format(java.util.Locale.US, "%.2f", c));
-    }
 
     private void row(LinearLayout parent, String title, String detail) {
         View v = LayoutInflater.from(this).inflate(R.layout.item_skill, parent, false);

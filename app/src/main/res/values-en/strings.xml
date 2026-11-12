@@ -252,11 +252,14 @@
     <string name="limit_run_reached">This task used %1$s tokens, the per-task limit of %2$s, and was stopped. Change it in Settings > Model usage and limits.</string>
     <string name="limit_daily_reached">%1$s tokens were used today, the daily limit of %2$s; it resets tomorrow. Change it in Settings > Model usage and limits.</string>
     <string name="price_title">Price (optional)</string>
-    <string name="price_hint">With a price, the usage screen and run details show an estimated cost. Enter the provider\'s price per million tokens.</string>
+    <string name="price_hint">Common models are priced from the built-in LiteLLM price list. A price entered here wins, for all of this service\'s models.</string>
     <string name="price_in">Input / million</string>
     <string name="price_out">Output / million</string>
     <string name="price_currency">Currency</string>
     <string name="overview_tokens_today">Tokens today</string>
     <string name="overview_cost_today">Cost today</string>
     <string name="overview_no_price">No price set</string>
+    <string name="usage_table_prices">Models without a price you entered are estimated from the LiteLLM price list (%s, USD).</string>
+    <string name="price_table_found">Price list (LiteLLM, %1$s, per million tokens, with the price\'s source last): %2$s. For a model you host yourself this is only a third party\'s market price; enter your own above.</string>
+    <string name="price_table_missing">Not in the price list: %s. Self-hosted or uncommon models need a price entered above.</string>
 </resources>

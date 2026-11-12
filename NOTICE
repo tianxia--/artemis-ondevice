@@ -16,6 +16,9 @@ This project is not affiliated with, endorsed by or sponsored by Google.
 Third-party components bundled in the APK:
 - sherpa-onnx (https://github.com/k2-fsa/sherpa-onnx), Apache License 2.0
 - AndroidX AppCompat and Material Components for Android, Apache License 2.0
+- Model prices (app/src/main/assets/prices.json) derived from LiteLLM's
+  model_prices_and_context_window.json (https://github.com/BerriAI/litellm),
+  Copyright (c) 2023 Berri AI, MIT License
 - Offline voice models (wake word, speech recognition, speech synthesis) downloaded by
   scripts/fetch-voice.sh from the sherpa-onnx releases; each model remains under its
   authors' license, listed on the sherpa-onnx model pages.

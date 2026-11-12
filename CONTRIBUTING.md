@@ -23,7 +23,7 @@ easiest to review.
 
 ## Releasing (maintainers) / 发布（维护者）
 
-1. Bump `versionCode` and `versionName` in `app/build.gradle.kts`. / 修改 `app/build.gradle.kts` 里的 `versionCode` 和 `versionName`。
+1. Bump `versionCode` and `versionName` in `app/build.gradle.kts`, and run `python3 scripts/update-prices.py` for current model prices. / 修改 `app/build.gradle.kts` 里的 `versionCode` 和 `versionName`，并运行 `python3 scripts/update-prices.py` 更新模型价格。
 2. Move the "Unreleased" entries in `CHANGELOG.md` under a new version heading. / 把 `CHANGELOG.md` 里 Unreleased 的内容移到新版本标题下。
 3. Commit, then `git tag vX.Y.Z && git push origin vX.Y.Z`. The release workflow builds, signs and publishes the APK. / 提交后执行 `git tag vX.Y.Z && git push origin vX.Y.Z`，release 工作流会自动编译、签名并发布 APK。
 

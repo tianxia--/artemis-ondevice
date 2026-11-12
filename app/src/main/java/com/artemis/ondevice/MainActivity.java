@@ -265,29 +265,14 @@ public class MainActivity extends AppCompatActivity implements RunState.Listener
 
     /** Today's tokens and cost; both tiles open the usage screen. */
     private void renderUsage() {
-        java.util.Map<String, ProviderStore.Provider> providers = new java.util.HashMap<>();
-        for (ProviderStore.Provider p : ProviderStore.list(this)) providers.put(p.id, p);
+        List<UsageStore.Row> rows = UsageStore.rows(this, 1);
         long tokens = 0;
-        double cost = 0;
-        String currency = null;
-        boolean priced = false, unpriced = false, mixed = false;
-        for (UsageStore.Row r : UsageStore.rows(this, 1)) {
-            tokens += r.tokens();
-            ProviderStore.Provider p = providers.get(r.provider);
-            if (p == null || !p.hasPrice()) {
-                unpriced = true;
-                continue;
-            }
-            if (currency != null && !currency.equals(p.currency)) mixed = true;
-            currency = p.currency;
-            cost += p.cost(r.in, r.out);
-            priced = true;
-        }
+        for (UsageStore.Row r : rows) tokens += r.tokens();
+        Pricing.Total total = Pricing.total(this, rows);
         long limit = AppSettings.dailyTokenLimit(this);
         String tokenText = Format.tokens(tokens) + (limit > 0 ? " / " + Format.tokens(limit) : "");
-        String costText = !priced ? (tokens == 0 ? "–" : getString(R.string.overview_no_price))
-                : mixed ? "–" : currency + (cost < 0.01 ? String.format(java.util.Locale.US, "%.4f", cost)
-                : String.format(java.util.Locale.US, "%.2f", cost)) + (unpriced ? "+" : "");
+        String costText = total.priced ? (total.mixed ? "–" : total.text())
+                : tokens == 0 ? "–" : getString(R.string.overview_no_price);
         metric(R.id.stat_tokens, tokenText, R.string.overview_tokens_today);
         metric(R.id.stat_cost, costText, R.string.overview_cost_today);
         View.OnClickListener open = v -> startActivity(new Intent(this, UsageActivity.class));
