@@ -65,7 +65,10 @@ history and only the latest screenshot is sent.
   follows the system.
 - **Voice wake-up** (optional, Mandarin only): say "你好阿特", then say the task. Wake word,
   recognition and speech run offline on the phone; see [docs/voice-design.md](docs/voice-design.md).
-- WeChat, QQ and Alipay are never operated, to avoid account bans.
+- **Money is off limits**: banking, payment, wallet, securities and crypto apps (including WeChat, QQ
+  and Alipay) are never operated, tasks about transfers, payments or purchases are refused, and
+  buttons that pay, transfer or buy are never tapped. This avoids account bans and misuse for fraud,
+  and cannot be turned off.
 
 ## Requirements
 

@@ -45,7 +45,7 @@ final class Sensitive {
         return null;
     }
 
-    private static String targetLabel(Observation obs, JSONObject a) {
+    static String targetLabel(Observation obs, JSONObject a) {
         if (a.has("index") && !a.isNull("index")) {
             int i = a.optInt("index", -1);
             if (i >= 0 && i < obs.elements.size()) return obs.elements.get(i).label;
@@ -54,7 +54,7 @@ final class Sensitive {
     }
 
     /** The element's visible text and description, without the list's field names and flags. */
-    private static String buttonText(String label) {
+    static String buttonText(String label) {
         StringBuilder sb = new StringBuilder();
         Matcher m = QUOTED.matcher(label);
         while (m.find()) {

@@ -158,7 +158,7 @@
     <string name="voice_speaking">Speaking…</string>
     <string name="voice_running">Running the task</string>
     <string name="voice_failed">Voice wake-up error: %1$s</string>
-    <string name="blocked_app">To avoid account bans, Artemis does not operate WeChat, QQ or Alipay.</string>
+    <string name="blocked_app">To avoid account bans and misuse for fraud, Artemis does not operate banking, payment, wallet, securities or other money apps (including WeChat, QQ and Alipay), and does not transfer money, pay or buy. Please do it yourself.</string>
     <!-- Skills (record and replay) -->
     <string name="action_save_skill">Save as skill</string>
     <string name="skill_saved">Saved as a skill; the same task will be replayed next time</string>

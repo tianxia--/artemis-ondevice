@@ -169,7 +169,7 @@ final class McpTools {
     private JSONObject observe(JSONObject args) throws Exception {
         AgentAccessibilityService s = service();
         Observation obs = Observation.capture(s, args.optBoolean("screenshot", true));
-        if (FlashLoop.BLOCKED_APPS.contains(obs.packageName)) {
+        if (MoneyGuard.isBlockedApp(ctx, obs.packageName)) {
             lastObservation = null;
             throw new IllegalStateException("a blocked app (account ban risk) is in front; nothing is read from it");
         }
@@ -187,7 +187,7 @@ final class McpTools {
                 || !isActionTool(name)) throw new IllegalArgumentException("unknown tool: " + name);
         if (RunState.isRunning()) throw new IllegalStateException("the phone's agent is running a task; stop_run first");
         AgentAccessibilityService s = service();
-        if (FlashLoop.BLOCKED_APPS.contains(s.currentPackage())) {
+        if (MoneyGuard.isBlockedApp(ctx, s.currentPackage())) {
             throw new IllegalStateException("a blocked app (account ban risk) is in front");
         }
         // Our own screens hold the MCP settings and the token: only leave them, never operate them.
@@ -197,7 +197,11 @@ final class McpTools {
         Observation obs = lastObservation;
         if (args.has("index") && obs == null) throw new IllegalArgumentException("call observe first; index refers to its element list");
         if (obs == null) obs = Observation.capture(s, false);
-        String outcome = Actions.execute(s, obs, new ChatClient.ToolCall(name, args));
+        ChatClient.ToolCall call = new ChatClient.ToolCall(name, args);
+        if (MoneyGuard.isMoneyAction(obs, call)) {
+            throw new IllegalStateException("Artemis never pays, transfers money or buys; the user has to do this step");
+        }
+        String outcome = Actions.execute(s, obs, call);
         // Indices belong to the observation they came from; the screen has moved on.
         lastObservation = null;
         return outcome.contains("FAILED") ? error(outcome) : text(outcome);

@@ -60,23 +60,6 @@ final class FlashLoop {
                     + "history and change approach (another element, scroll, back, open_app), or call "
                     + "finish(status=\"failed\") with the blocking reason.";
 
-    /**
-     * Apps whose risk controls flag accessibility automation and can ban the user's account (a
-     * WeChat test run nearly got the account banned). The agent never operates them: a run that
-     * lands in one ends as failed, and open_app refuses to launch them.
-     */
-    static final Set<String> BLOCKED_APPS = new HashSet<>(Arrays.asList(
-            "com.tencent.mm", "com.tencent.mobileqq", "com.eg.android.AlipayGphone"));
-
-    /** The same apps named in a task ("微信读书", "QQ音乐" etc. are other apps and allowed). */
-    private static final java.util.regex.Pattern BLOCKED_IN_TASK = java.util.regex.Pattern.compile(
-            "微信(?!读书)|支付宝|wechat|weixin|alipay|(?<![a-z])qq(?!音乐|邮箱|浏览器|阅读)",
-            java.util.regex.Pattern.CASE_INSENSITIVE);
-
-    static boolean namesBlockedApp(String task) {
-        return task != null && BLOCKED_IN_TASK.matcher(task).find();
-    }
-
     /** After a failed or skipped action: re-orient against the task memory before going on. */
     private static final String RECOVER_NOTICE =
             "[NOTICE] An action in your last step failed or was skipped. Before acting, re-orient: compare the current "
@@ -131,15 +114,15 @@ final class FlashLoop {
         String answer = "";
         String nudge = null;
         int failStreak = 0;
-        if (namesBlockedApp(run.task)) {
-            Log.w(AgentService.TAG, "task names a blocked app; not starting");
+        if (MoneyGuard.isBlockedTask(ctx, run.task)) {
+            Log.w(AgentService.TAG, "task involves money or a money app; not starting");
             run.answer = ctx.getString(R.string.blocked_app);
             run.endedAt = System.currentTimeMillis();
             run.status = RunRecord.FAILED;
             return;
         }
         earlierNotes = earlierNotes();
-        namedApps = Actions.appsNamedIn(ctx.getPackageManager(), run.task, ctx.getPackageName());
+        namedApps = Actions.appsNamedIn(ctx, run.task);
         allLessons = ExperienceStore.list(ctx);
         generalLessons = ExperienceStore.general(ctx);
         for (Experience e : generalLessons) run.lessonIds.add(e.id);
@@ -162,8 +145,8 @@ final class FlashLoop {
                 RunState.phase(RunState.Phase.OBSERVING);
                 Observation obs = Observation.capture(a11y);
                 long tObs = System.currentTimeMillis();
-                if (BLOCKED_APPS.contains(obs.packageName)) {
-                    Log.w(AgentService.TAG, "blocked app in front; stopping");
+                if (MoneyGuard.isBlockedApp(ctx, obs.packageName)) {
+                    Log.w(AgentService.TAG, "money app in front; stopping");
                     status = RunRecord.FAILED;
                     answer = ctx.getString(R.string.blocked_app);
                     break;
@@ -343,6 +326,12 @@ final class FlashLoop {
      */
     private String confirm(AgentAccessibilityService a11y, Observation obs, ChatClient.ToolCall call)
             throws InterruptedException {
+        // Money is never moved, whatever the confirmation setting or earlier answers say.
+        if (MoneyGuard.isMoneyAction(obs, call)) {
+            Log.w(AgentService.TAG, call.name + ": money action refused");
+            return call.name + " SKIPPED: Artemis never pays, transfers money or buys. Do not try another way; "
+                    + "record it as not done and tell the user to do this step themselves.";
+        }
         if (allowAllCommits || !AppSettings.confirmSensitive(ctx)) return null;
         String what = Sensitive.check(obs, call);
         if (what == null) return null;
@@ -425,7 +414,7 @@ final class FlashLoop {
                 if ((appOk && index != Skill.NOT_FOUND) || System.currentTimeMillis() > deadline) break;
                 Thread.sleep(REPLAY_POLL_MS);
             }
-            if (BLOCKED_APPS.contains(obs.packageName)) return null;
+            if (MoneyGuard.isBlockedApp(ctx, obs.packageName)) return null;
             if (!appOk || index == Skill.NOT_FOUND) {
                 Log.i(AgentService.TAG, "replay: step " + (i + 1) + "/" + total + " target not on screen; model takes over");
                 return replayNotice(i, total, !appOk

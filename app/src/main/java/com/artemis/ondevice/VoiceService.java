@@ -155,7 +155,7 @@ public class VoiceService extends Service implements Runnable {
             long tc = System.currentTimeMillis();
             TaskCorrector.Result r = TaskCorrector.correct(this, heard);
             Log.i(AgentService.TAG, "voice: corrected in " + (System.currentTimeMillis() - tc) + " ms, confirm=" + r.confirm);
-            if (FlashLoop.namesBlockedApp(heard) || FlashLoop.namesBlockedApp(r.task)) {
+            if (MoneyGuard.isBlockedTask(this, heard) || MoneyGuard.isBlockedTask(this, r.task)) {
                 say(engine, getString(R.string.blocked_app));
                 return;
             }

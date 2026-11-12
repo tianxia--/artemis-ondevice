@@ -162,7 +162,7 @@
     <string name="voice_speaking">正在播报…</string>
     <string name="voice_running">正在执行任务</string>
     <string name="voice_failed">语音唤醒出错：%1$s</string>
-    <string name="blocked_app">为避免账号被封，Artemis 不操作微信、QQ 和支付宝。</string>
+    <string name="blocked_app">为避免账号被封和被他人利用诈骗，Artemis 不操作银行、支付、钱包、证券等涉及金钱的应用（包括微信、QQ、支付宝），也不执行转账、付款、购买等操作，请你自己完成。</string>
     <!-- Skills (record and replay) -->
     <string name="action_save_skill">保存为技能</string>
     <string name="skill_saved">已保存为技能，下次执行同样的任务会直接回放</string>

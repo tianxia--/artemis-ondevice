@@ -101,8 +101,8 @@ final class Actions {
                 }
                 case "open_app": {
                     String app = a.optString("app");
-                    if (FlashLoop.BLOCKED_APPS.contains(app.trim())) {
-                        return "open_app('" + app + "') FAILED: this app is blocked (account ban risk); call finish(status=\"failed\")";
+                    if (MoneyGuard.isBlockedApp(s, app.trim())) {
+                        return "open_app('" + app + "') FAILED: money apps are never operated; call finish(status=\"failed\")";
                     }
                     String before = s.currentPackage();
                     String pkg = launch(s, app);
@@ -193,8 +193,8 @@ final class Actions {
         if (intent == null) {
             pkg = findApp(pm, app);
             if (pkg == null) return null;
-            if (FlashLoop.BLOCKED_APPS.contains(pkg)) throw new IllegalArgumentException(
-                    "this app is blocked (account ban risk); call finish(status=\"failed\")");
+            if (MoneyGuard.isBlockedApp(s, pkg)) throw new IllegalArgumentException(
+                    "money apps are never operated; call finish(status=\"failed\")");
             intent = pm.getLaunchIntentForPackage(pkg);
             if (intent == null) return null;
         }
@@ -271,7 +271,9 @@ final class Actions {
      * Launchable apps whose name appears in the task, as "label = package" (at most 5): the model
      * can open them with open_app right away instead of looking for their icons.
      */
-    static List<String> appsNamedIn(PackageManager pm, String task, String self) {
+    static List<String> appsNamedIn(android.content.Context ctx, String task) {
+        PackageManager pm = ctx.getPackageManager();
+        String self = ctx.getPackageName();
         List<String> out = new ArrayList<>();
         String t = norm(task);
         Intent q = new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER);
@@ -279,7 +281,7 @@ final class Actions {
             String pkg = ri.activityInfo.packageName;
             String label = String.valueOf(ri.loadLabel(pm));
             String n = norm(label);
-            if (n.length() < 2 || pkg.equals(self) || FlashLoop.BLOCKED_APPS.contains(pkg) || !t.contains(n)) continue;
+            if (n.length() < 2 || pkg.equals(self) || !t.contains(n)) continue;
             String entry = label + " = " + pkg;
             if (!out.contains(entry)) out.add(entry);
             if (out.size() == 5) break;
