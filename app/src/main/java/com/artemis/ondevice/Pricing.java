@@ -52,23 +52,50 @@ final class Pricing {
         return t == null ? null : new Price(t[0], t[1], "$", true);
     }
 
+    /** Quantization and precision tags that deployments add to a model name; they do not change the model. */
+    private static final java.util.regex.Pattern QUANT = java.util.regex.Pattern.compile(
+            "-(fp8|fp16|bf16|int4|int8|w4a16|w8a8|awq|gptq|gguf|mlx|q4|q8|4bit|8bit)\\b.*$");
+
     /** Table price [in, out] per million tokens for a model id, or null. */
     static double[] lookup(Context ctx, String model) {
-        if (model == null || model.isEmpty()) return null;
+        String key = tableKey(ctx, model);
+        return key == null ? null : load(ctx).get(key);
+    }
+
+    /**
+     * The table entry a model id matches: the id itself (also without a "provider/" prefix), then
+     * without quantization tags, then dropping trailing "-part"s one by one while two parts are
+     * left (Qwen3.8-Flash-Next-FP8 -> qwen3.8-flash-next -> qwen3.8-flash). Null when nothing matches.
+     */
+    static String tableKey(Context ctx, String model) {
+        if (model == null || model.trim().isEmpty()) return null;
         Map<String, double[]> t = load(ctx);
         String id = model.toLowerCase(Locale.ROOT).trim();
-        double[] hit = t.get(id);
-        if (hit == null && id.contains("/")) hit = t.get(id.substring(id.lastIndexOf('/') + 1));
-        return hit;
+        if (t.containsKey(id)) return id;
+        if (id.contains("/")) id = id.substring(id.lastIndexOf('/') + 1);
+        if (t.containsKey(id)) return id;
+        id = QUANT.matcher(id).replaceFirst("");
+        while (true) {
+            if (t.containsKey(id)) return id;
+            int cut = id.lastIndexOf('-');
+            if (cut <= 0 || id.substring(0, cut).indexOf('-') < 0) return null;
+            id = id.substring(0, cut);
+        }
+    }
+
+    /** Whether the model id matched the table only approximately (a shortened name). */
+    static boolean approximate(Context ctx, String model) {
+        String key = tableKey(ctx, model);
+        return key != null && !key.equals(model.toLowerCase(Locale.ROOT).trim())
+                && !model.toLowerCase(Locale.ROOT).trim().endsWith("/" + key);
     }
 
     /** The provider whose price the table has for this model, or "". */
     static String tableSource(Context ctx, String model) {
-        if (lookup(ctx, model) == null) return "";
-        String id = model.toLowerCase(Locale.ROOT).trim();
-        String p = tableProvider.get(id);
-        if (p == null && id.contains("/")) p = tableProvider.get(id.substring(id.lastIndexOf('/') + 1));
-        return p == null ? "" : p;
+        String key = tableKey(ctx, model);
+        String p = key == null ? null : tableProvider.get(key);
+        if (p == null) return "";
+        return approximate(ctx, model) ? "≈ " + key + ", " + p : p;
     }
 
     /** Date the bundled table was fetched, for display. */
