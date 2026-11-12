@@ -88,6 +88,10 @@ final class RunRecord {
     String skillId = "";
     /** The model's working memory at the end of the run (see {@link TaskMemory}). */
     TaskMemory memory = new TaskMemory();
+    /** Lessons ({@link Experience} ids) that were in this run's prompt. */
+    final List<String> lessonIds = new ArrayList<>();
+    /** What the review after the run did: "", "skipped", "added 2, confirmed 1" or "failed: ...". */
+    volatile String reflection = "";
     final List<Step> steps = new CopyOnWriteArrayList<>();
 
     static String newId() {
@@ -154,7 +158,8 @@ final class RunRecord {
                 .put("model", model).put("max_steps", maxSteps).put("screenshot", screenshot)
                 .put("started_at", startedAt).put("ended_at", endedAt)
                 .put("status", status).put("answer", answer).put("skill", skillId)
-                .put("memory", memory.toJson()).put("steps", st);
+                .put("memory", memory.toJson()).put("lessons", new JSONArray(lessonIds))
+                .put("reflection", reflection).put("steps", st);
     }
 
     static RunRecord fromJson(JSONObject o) {
@@ -171,6 +176,9 @@ final class RunRecord {
         r.answer = o.optString("answer");
         r.skillId = o.optString("skill");
         r.memory = TaskMemory.fromJson(o.optJSONObject("memory"));
+        r.reflection = o.optString("reflection");
+        JSONArray ls = o.optJSONArray("lessons");
+        if (ls != null) for (int i = 0; i < ls.length(); i++) r.lessonIds.add(ls.optString(i));
         JSONArray st = o.optJSONArray("steps");
         if (st != null) for (int i = 0; i < st.length(); i++) r.steps.add(Step.fromJson(st.optJSONObject(i)));
         // A run that was still "running" when the process died never finished.

@@ -199,4 +199,20 @@
     <string name="mcp_notification_title">MCP 服务运行中</string>
     <string name="mcp_notification_local">只监听本机端口 %d（通过 adb forward 连接）</string>
     <string name="mcp_notification_lan">监听局域网端口 %d</string>
+    <!-- Experience (lessons from earlier runs) -->
+    <string name="section_lessons">经验</string>
+    <string name="setting_reflect">任务结束后复盘</string>
+    <string name="setting_reflect_hint">每次任务结束后，让模型复盘哪些步骤白走了，提炼成经验（多调用一次模型）。经验在至少 %d 次任务里出现过，或者你点了批准，才会用在以后的任务里；用过后效果差的会自动降回候选。经验只保存在手机上，不包含联系人、消息等个人信息。</string>
+    <string name="lessons_empty">还没有经验。任务结束后会自动复盘生成。</string>
+    <string name="lesson_layer_principle">思维原则</string>
+    <string name="lesson_layer_pattern">操作套路</string>
+    <string name="lesson_layer_fact">应用事实</string>
+    <string name="lesson_state_active">使用中</string>
+    <string name="lesson_state_candidate">候选</string>
+    <string name="lesson_state_off">已关闭</string>
+    <string name="lesson_meta">%1$s · %2$s · 出现 %3$d 次</string>
+    <string name="lesson_meta_used">%1$s · 用过 %2$d 次，成功 %3$d%%</string>
+    <string name="lesson_approve">批准使用</string>
+    <string name="lesson_unapprove">取消批准</string>
+    <string name="confirm_delete_lesson">删除这条经验？</string>
 </resources>

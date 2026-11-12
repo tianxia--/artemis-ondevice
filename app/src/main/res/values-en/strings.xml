@@ -195,4 +195,20 @@
     <string name="mcp_notification_title">MCP server running</string>
     <string name="mcp_notification_local">Localhost port %d only (connect with adb forward)</string>
     <string name="mcp_notification_lan">Listening on the LAN, port %d</string>
+    <!-- Experience (lessons from earlier runs) -->
+    <string name="section_lessons">Experience</string>
+    <string name="setting_reflect">Review each finished task</string>
+    <string name="setting_reflect_hint">After each task the model reviews which steps were wasted and distills lessons (one extra model call). A lesson is used in later tasks once it came up in at least %d tasks or you approve it; lessons whose tasks keep failing drop back to candidates. Lessons stay on the phone and leave out contacts, messages and other personal data.</string>
+    <string name="lessons_empty">No lessons yet. They are distilled after tasks finish.</string>
+    <string name="lesson_layer_principle">Principle</string>
+    <string name="lesson_layer_pattern">Pattern</string>
+    <string name="lesson_layer_fact">App fact</string>
+    <string name="lesson_state_active">In use</string>
+    <string name="lesson_state_candidate">Candidate</string>
+    <string name="lesson_state_off">Off</string>
+    <string name="lesson_meta">%1$s · %2$s · seen %3$d times</string>
+    <string name="lesson_meta_used">%1$s · used %2$d times, %3$d%% succeeded</string>
+    <string name="lesson_approve">Approve</string>
+    <string name="lesson_unapprove">Remove approval</string>
+    <string name="confirm_delete_lesson">Delete this lesson?</string>
 </resources>

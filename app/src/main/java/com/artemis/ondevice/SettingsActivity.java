@@ -105,6 +105,7 @@ public class SettingsActivity extends AppCompatActivity {
 
         setupLanguage();
         setupMcp();
+        setupLessons();
 
         MaterialSwitch voice = findViewById(R.id.switch_voice);
         voice.setChecked(VoiceService.canRun(this));
@@ -198,6 +199,7 @@ public class SettingsActivity extends AppCompatActivity {
         }
 
         renderSkills();
+        renderLessons();
         renderMcp();
 
         boolean on = AgentAccessibilityService.get() != null;
@@ -387,5 +389,83 @@ public class SettingsActivity extends AppCompatActivity {
             clip.getDescription().setExtras(extras);
         }
         getSystemService(ClipboardManager.class).setPrimaryClip(clip);
+    }
+
+    // ------------------------------------------------------------------ experience
+
+    private void setupLessons() {
+        ((TextView) findViewById(R.id.reflect_hint)).setText(getString(R.string.setting_reflect_hint, Experience.ACTIVATE_AT));
+        MaterialSwitch reflect = findViewById(R.id.switch_reflect);
+        reflect.setChecked(AppSettings.reflect(this));
+        reflect.setOnCheckedChangeListener((b, on) -> AppSettings.setReflect(this, on));
+    }
+
+    private void renderLessons() {
+        List<Experience> all = ExperienceStore.list(this);
+        LinearLayout list = findViewById(R.id.lessons);
+        list.removeAllViews();
+        findViewById(R.id.lessons_empty).setVisibility(all.isEmpty() ? View.VISIBLE : View.GONE);
+        for (String layer : new String[]{Experience.PRINCIPLE, Experience.PATTERN, Experience.FACT}) {
+            for (Experience e : all) {
+                if (!layer.equals(e.layer)) continue;
+                View row = LayoutInflater.from(this).inflate(R.layout.item_skill, list, false);
+                ((TextView) row.findViewById(R.id.skill_name)).setText(e.promptLine());
+                ((TextView) row.findViewById(R.id.skill_meta)).setText(lessonMeta(e));
+                MaterialSwitch on = row.findViewById(R.id.skill_enabled);
+                on.setChecked(!e.off);
+                on.setOnCheckedChangeListener((b, checked) -> {
+                    e.off = !checked;
+                    updateLesson(e);
+                    ((TextView) row.findViewById(R.id.skill_meta)).setText(lessonMeta(e));
+                });
+                row.setOnClickListener(v -> new MaterialAlertDialogBuilder(this)
+                        .setMessage(e.promptLine())
+                        .setItems(new CharSequence[]{
+                                getString(e.approved ? R.string.lesson_unapprove : R.string.lesson_approve),
+                                getString(R.string.delete)}, (d, which) -> {
+                            if (which == 0) {
+                                e.approved = !e.approved;
+                                updateLesson(e);
+                                renderLessons();
+                            } else {
+                                confirmDeleteLesson(e);
+                            }
+                        })
+                        .show());
+                list.addView(row);
+            }
+        }
+    }
+
+    private String lessonMeta(Experience e) {
+        int layer = Experience.FACT.equals(e.layer) ? R.string.lesson_layer_fact
+                : Experience.PATTERN.equals(e.layer) ? R.string.lesson_layer_pattern : R.string.lesson_layer_principle;
+        int state = e.off ? R.string.lesson_state_off : e.active() ? R.string.lesson_state_active : R.string.lesson_state_candidate;
+        String head = getString(layer) + (e.app.isEmpty() ? "" : " · " + e.app);
+        String meta = getString(R.string.lesson_meta, head, getString(state), e.seen);
+        return e.uses == 0 ? meta : getString(R.string.lesson_meta_used, meta, e.uses, e.successRate());
+    }
+
+    private void confirmDeleteLesson(Experience e) {
+        new MaterialAlertDialogBuilder(this)
+                .setMessage(R.string.confirm_delete_lesson)
+                .setPositiveButton(R.string.delete, (d, w) -> {
+                    try {
+                        ExperienceStore.remove(this, e.id);
+                    } catch (Exception ex) {
+                        Toast.makeText(this, ex.getMessage(), Toast.LENGTH_LONG).show();
+                    }
+                    renderLessons();
+                })
+                .setNegativeButton(R.string.cancel, null)
+                .show();
+    }
+
+    private void updateLesson(Experience e) {
+        try {
+            ExperienceStore.update(this, e);
+        } catch (Exception ex) {
+            Toast.makeText(this, ex.getMessage(), Toast.LENGTH_LONG).show();
+        }
     }
 }

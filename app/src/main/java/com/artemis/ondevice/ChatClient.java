@@ -55,6 +55,8 @@ final class ChatClient {
 
     static final class Result {
         String text = "";
+        /** Why generation stopped as the API reported it ("stop", "length", "end_turn", "max_tokens" ...). */
+        String finishReason = "";
         final List<ToolCall> toolCalls = new ArrayList<>();
         int promptTokens;
         int completionTokens;
@@ -139,7 +141,9 @@ final class ChatClient {
 
     private static Result parseOpenAi(JSONObject resp) throws Exception {
         Result r = new Result();
-        JSONObject msg = resp.getJSONArray("choices").getJSONObject(0).getJSONObject("message");
+        JSONObject choice = resp.getJSONArray("choices").getJSONObject(0);
+        r.finishReason = choice.optString("finish_reason", "");
+        JSONObject msg = choice.getJSONObject("message");
         r.text = msg.isNull("content") ? "" : msg.optString("content", "");
         JSONArray calls = msg.optJSONArray("tool_calls");
         if (calls != null) {
@@ -198,6 +202,7 @@ final class ChatClient {
                 r.toolCalls.add(new ToolCall(b.getString("name"), b.optJSONObject("input")));
             }
         }
+        r.finishReason = resp.optString("stop_reason", "");
         r.text = text.toString();
         JSONObject usage = resp.optJSONObject("usage");
         if (usage != null) {

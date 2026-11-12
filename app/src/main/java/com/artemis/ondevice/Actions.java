@@ -104,11 +104,27 @@ final class Actions {
                     if (FlashLoop.BLOCKED_APPS.contains(app.trim())) {
                         return "open_app('" + app + "') FAILED: this app is blocked (account ban risk); call finish(status=\"failed\")";
                     }
+                    String before = s.currentPackage();
                     String pkg = launch(s, app);
                     if (pkg == null) {
                         return "open_app('" + app + "') FAILED: no launchable app matches; use the label shown on the home screen";
                     }
                     long ms = settleOnApp(s, obs, pkg);
+                    String front = s.currentPackage();
+                    if (!pkg.equals(front) && (front.equals(before) || front.equals(homePackage(s)))) {
+                        // Some phones (seen on Huawei) drop the first launch from the background without
+                        // any dialog: the home screen or the previous app is still in front. Launching
+                        // again works. A dialog in front is left to the model.
+                        launch(s, pkg);
+                        ms += settleOnApp(s, obs, pkg);
+                        front = s.currentPackage();
+                    }
+                    if (!pkg.equals(front)) {
+                        // Some phones ask before one app opens another; the launch waits behind that dialog.
+                        return "open_app('" + app + "') -> " + pkg + " started, but " + (front.isEmpty() ? "another app" : front)
+                                + " is still in front after " + ms + "ms: a dialog may be asking to allow the launch; "
+                                + "observe and handle it, do not launch again yet";
+                    }
                     return "open_app('" + app + "') ok -> " + pkg + " (ready after " + ms + "ms)";
                 }
                 case "wait": {
@@ -242,6 +258,33 @@ final class Actions {
             }
         }
         return best;
+    }
+
+    /** Package of the home screen (launcher), or "". */
+    private static String homePackage(AgentAccessibilityService s) {
+        ResolveInfo ri = s.getPackageManager().resolveActivity(
+                new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME), PackageManager.MATCH_DEFAULT_ONLY);
+        return ri == null || ri.activityInfo == null ? "" : ri.activityInfo.packageName;
+    }
+
+    /**
+     * Launchable apps whose name appears in the task, as "label = package" (at most 5): the model
+     * can open them with open_app right away instead of looking for their icons.
+     */
+    static List<String> appsNamedIn(PackageManager pm, String task, String self) {
+        List<String> out = new ArrayList<>();
+        String t = norm(task);
+        Intent q = new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER);
+        for (ResolveInfo ri : pm.queryIntentActivities(q, 0)) {
+            String pkg = ri.activityInfo.packageName;
+            String label = String.valueOf(ri.loadLabel(pm));
+            String n = norm(label);
+            if (n.length() < 2 || pkg.equals(self) || FlashLoop.BLOCKED_APPS.contains(pkg) || !t.contains(n)) continue;
+            String entry = label + " = " + pkg;
+            if (!out.contains(entry)) out.add(entry);
+            if (out.size() == 5) break;
+        }
+        return out;
     }
 
     private static String norm(String s) {

@@ -105,6 +105,11 @@ final class FlashLoop {
     private final Skill skill;
     /** Facts and dead ends from the latest earlier run of the same task, as a prompt section, or "". */
     private String earlierNotes = "";
+    /** Installed apps the task names ("label = package"), told to the model so it opens them directly. */
+    private List<String> namedApps = new ArrayList<>();
+    /** Active principles and patterns, fixed for the run; facts are picked per foreground app. */
+    private List<Experience> generalLessons = new ArrayList<>();
+    private List<Experience> allLessons = new ArrayList<>();
     private final String uiLanguage = uiLanguage();
     private boolean replayComplete;
     private final Deque<String> history = new ArrayDeque<>();
@@ -131,6 +136,10 @@ final class FlashLoop {
             return;
         }
         earlierNotes = earlierNotes();
+        namedApps = Actions.appsNamedIn(ctx.getPackageManager(), run.task, ctx.getPackageName());
+        allLessons = ExperienceStore.list(ctx);
+        generalLessons = ExperienceStore.general(ctx);
+        for (Experience e : generalLessons) run.lessonIds.add(e.id);
         try {
             if (skill != null) nudge = replay();
             // Replayed steps cost no model call and do not count against the step cap.
@@ -450,7 +459,12 @@ final class FlashLoop {
                 + "3. Hold-to-act controls (\"hold to talk\", \"hold to record\", press-and-hold menus) need `long_press` with a "
                 + "`duration_ms` long enough for the action (e.g. 3000 ms to record a short voice message; the finger lifts at the end, which "
                 + "usually sends). A plain `tap` on them does nothing useful.\n"
-                + "4. To start an app, use `open_app` (package name or app label); it opens on the app's start screen.\n"
+                + "4. To start an app, call `open_app` with its label or package name; it finds any installed app and opens "
+                + "it on its start screen. Never swipe through home screen pages or the app drawer to look for an icon. "
+                + (namedApps.isEmpty() ? "" : "Installed apps named in the objective: " + TextUtils.join("; ", namedApps)
+                        + ". If the first part happens in one of them, open it with `open_app` in your first turn. ")
+                + "If `open_app` says the app is not in front yet, a dialog is usually asking to allow it: handle the "
+                + "dialog instead of launching again.\n"
                 + "5. You may call up to " + MAX_ACTIONS_PER_TURN + " action tools per turn (update_memory does not count); "
                 + "they run in order, and the rest of the turn stops at the first failed or skipped action.\n"
                 + "6. If `type_text` reports no editable field, it has put your text on the clipboard: long-press the input "
@@ -462,6 +476,7 @@ final class FlashLoop {
                 + "language, synonyms and other paths. Translate the objective's terms into that language before searching "
                 + "or looking for a menu item (e.g. 定时开关机 is 'Scheduled power on/off' on an English screen, and stays "
                 + "定时开关机 on a Chinese one). Answer the user in the objective's language.\n\n"
+                + lessonsSection()
                 + "# 6. TERMINATION (`finish`)\n"
                 + "- A part that involves another person (a call, a meeting invite, a friend request, a message) is done once "
                 + "you have performed it. If they reject, decline, are busy or do not answer, that is still done: record it in "
@@ -475,7 +490,8 @@ final class FlashLoop {
     }
 
     private String buildUserPrompt(Observation obs, int step, String notice) {
-        StringBuilder sb = new StringBuilder(earlierNotes).append(run.memory.render()).append('\n');
+        StringBuilder sb = new StringBuilder(earlierNotes).append(appFacts(obs.packageName))
+                .append(run.memory.render()).append('\n');
         if (!history.isEmpty()) {
             sb.append("# EXECUTION HISTORY (last ").append(history.size()).append(" steps)\n");
             for (String h : history) sb.append(h).append('\n');
@@ -547,6 +563,28 @@ final class FlashLoop {
             case DEVANAGARI: return "Devanagari (e.g. Hindi)";
             default: return s.name();
         }
+    }
+
+    /** Principles and patterns learned from earlier tasks, as a system-prompt section, or "". */
+    private String lessonsSection() {
+        if (generalLessons.isEmpty()) return "";
+        StringBuilder sb = new StringBuilder("# LESSONS FROM EARLIER TASKS ON THIS PHONE\n"
+                + "Advice distilled from earlier runs; apply it where it fits, and trust the current screen when it disagrees.\n");
+        for (Experience e : generalLessons) sb.append("- ").append(e.promptLine()).append('\n');
+        return sb.append('\n').toString();
+    }
+
+    /** Facts learned earlier about the app in front, as a prompt section, or "". */
+    private String appFacts(String pkg) {
+        if (pkg == null || pkg.isEmpty()) return "";
+        List<Experience> facts = ExperienceStore.facts(allLessons, pkg);
+        if (facts.isEmpty()) return "";
+        StringBuilder sb = new StringBuilder("# LEARNED EARLIER ABOUT ").append(pkg).append('\n');
+        for (Experience e : facts) {
+            sb.append("- ").append(e.promptLine()).append('\n');
+            if (!run.lessonIds.contains(e.id)) run.lessonIds.add(e.id);
+        }
+        return sb.append('\n').toString();
     }
 
     /** The phone's own language (not this app's in-app language choice). */

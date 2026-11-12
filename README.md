@@ -45,6 +45,10 @@ history and only the latest screenshot is sent.
 - **Skills (record and replay)**: save a completed run as a skill; the same task then replays the
   recorded steps without model calls, with one final model call to check the screen and answer.
   If a recorded target is missing, the model takes over from there.
+- **Experience**: after each task the model reviews which steps were wasted and distills lessons
+  (principles, patterns for kinds of screens, facts about one app). A lesson reaches later tasks once
+  two tasks drew or confirmed it, or you approve it in Settings > Experience; lessons whose tasks keep
+  failing drop back. Lessons stay on the phone and leave out personal data.
 - **Model services**: built-in presets or a custom OpenAI-compatible / Anthropic endpoint. The
   model list can be fetched from the service, and the connection can be tested.
 - **Privacy**: API keys are encrypted with an Android Keystore AES-GCM key and never logged. The

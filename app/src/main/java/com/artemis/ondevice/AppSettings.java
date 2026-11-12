@@ -12,6 +12,7 @@ final class AppSettings {
     private static final String BUBBLE = "bubble";
     private static final String VOICE = "voice";
     private static final String MCP = "mcp";
+    private static final String REFLECT = "reflect";
     private static final String MCP_LAN = "mcp_lan";
 
     private AppSettings() {}
@@ -33,6 +34,10 @@ final class AppSettings {
     /** Hands-free voice control (VoiceService). Off by default: it keeps the microphone open. */
     static boolean voice(Context c) { return p(c).getBoolean(VOICE, false); }
     static void setVoice(Context c, boolean v) { p(c).edit().putBoolean(VOICE, v).apply(); }
+
+    /** Review each finished run and learn lessons (Reflector): one extra model call per run. */
+    static boolean reflect(Context c) { return p(c).getBoolean(REFLECT, true); }
+    static void setReflect(Context c, boolean v) { p(c).edit().putBoolean(REFLECT, v).apply(); }
 
     /** MCP server (McpService). Off by default: it opens a port. */
     static boolean mcp(Context c) { return p(c).getBoolean(MCP, false); }

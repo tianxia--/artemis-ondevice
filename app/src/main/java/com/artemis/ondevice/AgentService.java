@@ -122,6 +122,7 @@ public class AgentService extends Service implements RunState.Listener {
                     run.answer = e.getClass().getSimpleName() + ": " + e.getMessage();
                     run.endedAt = System.currentTimeMillis();
                 } finally {
+                    ChatClient used = client;
                     client = null;
                     save(run);
                     RunStore.prune(ctx);
@@ -129,11 +130,37 @@ public class AgentService extends Service implements RunState.Listener {
                     RunState.end(run);
                     notifyDone(run);
                     returnToApp(run);
+                    afterRun(run, used);
                     finish();
                 }
             }
         }, "artemis-flash");
         worker.start();
+    }
+
+    /**
+     * Learning from the run, off the run's thread so the summary shows at once: how the lessons
+     * it used fared, then (if on) a review that distills new lessons. Stopped and errored runs say
+     * nothing about the lessons and are left out.
+     */
+    private void afterRun(final RunRecord run, final ChatClient used) {
+        final Context ctx = getApplicationContext();
+        final boolean ended = RunRecord.COMPLETED.equals(run.status) || RunRecord.FAILED.equals(run.status);
+        if (!ended) return;
+        new Thread(() -> {
+            ExperienceStore.recordUse(ctx, run.lessonIds, RunRecord.COMPLETED.equals(run.status), run.steps.size());
+            if (used == null || !AppSettings.reflect(ctx) || !Reflector.worthReviewing(run)) {
+                run.reflection = "skipped";
+            } else {
+                try {
+                    run.reflection = Reflector.review(ctx, used, run);
+                } catch (Exception e) {
+                    run.reflection = "failed: " + e.getClass().getSimpleName();
+                }
+            }
+            Log.i(TAG, "reflection: " + run.reflection);
+            save(run);
+        }, "artemis-reflect").start();
     }
 
     private void save(RunRecord run) {

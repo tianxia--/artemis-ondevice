@@ -7,6 +7,8 @@ All notable changes to this project are listed here. The format follows
 ## [Unreleased]
 
 ### Added
+- Experience: after each completed or failed run, one extra model call reviews where steps were wasted and records lessons in three layers (principles for any task, patterns for kinds of screens, facts about one app). A lesson is used in later prompts once two runs drew it or confirmed it, or the user approved it; lessons whose runs keep failing drop back to candidates. Settings > Experience lists them (approve, turn off, delete) and can turn the review off. Lessons stay on the phone and leave out personal data. Each run records what its review did.
+- Installed apps named in the task are listed for the model, which opens them with `open_app` instead of looking for icons on the home screen.
 - Notes from earlier runs: a task that was run before starts with that run's facts and dead ends, so a second run skips the first one's detours (on a Huawei phone, the same two-part task went from 19 steps / 118 s to 6 steps / 32 s).
 - Each turn reports which writing system dominates the screen text and the phone's system language; searches and label lookups use the screen's language first, then the system language, then the task's own language.
 - A part that involves another person (a call, an invite, a message) counts as done once performed, even if they reject or do not answer; it is noted and never retried.
@@ -17,6 +19,7 @@ All notable changes to this project are listed here. The format follows
 - Within one turn, the rest of the actions stop at the first failed or skipped action, and x,y actions after a tap, swipe, back, home or open_app are skipped (their point was chosen on the old screen).
 - After a failed or skipped action the next turn is told to re-orient against the task memory instead of redoing finished parts, and the failed step's reasoning is marked as unreliable in the history.
 - Anthropic requests use temperature 0.2, like OpenAI-compatible ones.
+- `open_app` launches again when the first launch left the home screen in front (seen on Huawei, which drops the first launch from the background), and says so when a dialog keeps the app behind instead of reporting it ready.
 - Model requests retry three times (after 2, 5 and 10 s) instead of once, and each attempt times out after 60 s instead of 90 s: a dropped connection no longer ends a run that was going well.
 
 ## [0.2.0] - 2026-11-09
