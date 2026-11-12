@@ -107,6 +107,10 @@ public class SettingsActivity extends AppCompatActivity {
         setupMcp();
         setupLessons();
 
+        MaterialSwitch confirm = findViewById(R.id.switch_confirm);
+        confirm.setChecked(AppSettings.confirmSensitive(this));
+        confirm.setOnCheckedChangeListener((b, on) -> AppSettings.setConfirmSensitive(this, on));
+
         MaterialSwitch voice = findViewById(R.id.switch_voice);
         voice.setChecked(VoiceService.canRun(this));
         ActivityResultLauncher<String> micPermission = registerForActivityResult(

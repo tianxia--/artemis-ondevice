@@ -56,6 +56,7 @@ final class Format {
             case OBSERVING: return c.getString(R.string.phase_observing);
             case THINKING: return c.getString(R.string.phase_thinking);
             case ACTING: return c.getString(R.string.phase_acting);
+            case WAITING_USER: return c.getString(R.string.phase_waiting_user);
             default: return c.getString(R.string.phase_idle);
         }
     }

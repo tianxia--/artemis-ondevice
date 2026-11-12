@@ -13,7 +13,7 @@ import java.util.concurrent.CopyOnWriteArraySet;
 final class RunState {
 
     /** What the loop is doing right now; shown in the bubble and on the home screen. */
-    enum Phase { IDLE, OBSERVING, THINKING, ACTING }
+    enum Phase { IDLE, OBSERVING, THINKING, ACTING, WAITING_USER }
 
     interface Listener {
         void onRunChanged();

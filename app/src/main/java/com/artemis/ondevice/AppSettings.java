@@ -13,6 +13,7 @@ final class AppSettings {
     private static final String VOICE = "voice";
     private static final String MCP = "mcp";
     private static final String REFLECT = "reflect";
+    private static final String CONFIRM = "confirm_sensitive";
     private static final String MCP_LAN = "mcp_lan";
 
     private AppSettings() {}
@@ -34,6 +35,10 @@ final class AppSettings {
     /** Hands-free voice control (VoiceService). Off by default: it keeps the microphone open. */
     static boolean voice(Context c) { return p(c).getBoolean(VOICE, false); }
     static void setVoice(Context c, boolean v) { p(c).edit().putBoolean(VOICE, v).apply(); }
+
+    /** Ask before taps that send, call, pay, delete or change settings (Sensitive). On by default. */
+    static boolean confirmSensitive(Context c) { return p(c).getBoolean(CONFIRM, true); }
+    static void setConfirmSensitive(Context c, boolean v) { p(c).edit().putBoolean(CONFIRM, v).apply(); }
 
     /** Review each finished run and learn lessons (Reflector): one extra model call per run. */
     static boolean reflect(Context c) { return p(c).getBoolean(REFLECT, true); }

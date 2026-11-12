@@ -64,7 +64,7 @@ final class McpTools {
         for (int i = 0; i < agentTools.length(); i++) {
             JSONObject f = agentTools.getJSONObject(i).getJSONObject("function");
             String n = f.getString("name");
-            if ("finish".equals(n) || FlashLoop.MEMORY_TOOL.equals(n)) continue;
+            if ("finish".equals(n) || FlashLoop.MEMORY_TOOL.equals(n) || FlashLoop.ASK_TOOL.equals(n)) continue;
             JSONObject schema = new JSONObject(f.getJSONObject("parameters").toString());
             JSONObject index = schema.getJSONObject("properties").optJSONObject("index");
             if (index != null) index.put("description", "Index of the element in the latest observe result.");
@@ -183,7 +183,8 @@ final class McpTools {
     }
 
     private JSONObject act(String name, JSONObject args) throws Exception {
-        if (name.equals("finish") || name.equals(FlashLoop.MEMORY_TOOL) || !isActionTool(name)) throw new IllegalArgumentException("unknown tool: " + name);
+        if (name.equals("finish") || name.equals(FlashLoop.MEMORY_TOOL) || name.equals(FlashLoop.ASK_TOOL)
+                || !isActionTool(name)) throw new IllegalArgumentException("unknown tool: " + name);
         if (RunState.isRunning()) throw new IllegalStateException("the phone's agent is running a task; stop_run first");
         AgentAccessibilityService s = service();
         if (FlashLoop.BLOCKED_APPS.contains(s.currentPackage())) {

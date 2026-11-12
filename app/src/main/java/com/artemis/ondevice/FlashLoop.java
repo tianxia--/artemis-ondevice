@@ -87,6 +87,7 @@ final class FlashLoop {
     private static final Set<String> NAVIGATING = new HashSet<>(Arrays.asList(
             "tap", "long_press", "swipe", "back", "home", "open_app"));
     static final String MEMORY_TOOL = "update_memory";
+    static final String ASK_TOOL = "ask_user";
 
     /** How long replay waits for a recorded target to appear (the screen may still be moving). */
     private static final long REPLAY_FIND_MS = 4000;
@@ -112,6 +113,8 @@ final class FlashLoop {
     private List<Experience> allLessons = new ArrayList<>();
     private final String uiLanguage = uiLanguage();
     private boolean replayComplete;
+    /** The user chose "allow for this task" on a confirmation. */
+    private boolean allowAllCommits;
     private final Deque<String> history = new ArrayDeque<>();
     private final Deque<String> recentStates = new ArrayDeque<>();
 
@@ -199,7 +202,15 @@ final class FlashLoop {
                     if (MEMORY_TOOL.equals(call.name)) continue;
                     if (n++ >= MAX_ACTIONS_PER_TURN) break;
                     if (blocked) {
-                        rec.actions.add(call.name + " SKIPPED: an earlier action in this turn failed");
+                        rec.actions.add(call.name + " SKIPPED: an earlier action in this turn failed or waited for the user");
+                        continue;
+                    }
+                    if (ASK_TOOL.equals(call.name)) {
+                        String outcome = askUser(a11y, call.args);
+                        rec.actions.add(outcome);
+                        nudge = "[USER ANSWER] " + outcome;
+                        // Later actions in this turn were chosen before the answer.
+                        blocked = true;
                         continue;
                     }
                     pausedMs += waitWhilePaused();
@@ -230,8 +241,10 @@ final class FlashLoop {
                             target = Observation.capture(a11y, false);
                             act = retarget(obs, target, call);
                         }
+                        String declined = act == null ? null : confirm(a11y, target, act);
                         outcome = act == null
                                 ? call.name + " SKIPPED: the target is no longer on screen (the screen changed); observe again"
+                                : declined != null ? declined
                                 : Actions.execute(a11y, target, act);
                     }
                     if (outcome.contains("FAILED") || outcome.contains("SKIPPED")) {
@@ -310,6 +323,67 @@ final class FlashLoop {
                 run.id, status, run.steps.size(), run.durationMs() / 1000f, run.promptTokens(), run.completionTokens()));
     }
 
+    // ------------------------------------------------------------------ the user's say
+
+    /**
+     * Asks the user before a sensitive action (see {@link Sensitive}). Returns null to go ahead,
+     * or the ledger entry of the declined action.
+     */
+    private String confirm(AgentAccessibilityService a11y, Observation obs, ChatClient.ToolCall call)
+            throws InterruptedException {
+        if (allowAllCommits || !AppSettings.confirmSensitive(ctx)) return null;
+        String what = Sensitive.check(obs, call);
+        if (what == null) return null;
+        RunState.Phase before = RunState.phase();
+        RunState.phase(RunState.Phase.WAITING_USER);
+        int pick = UserPrompt.ask(a11y, ctx.getString(R.string.confirm_title), what, java.util.Arrays.asList(
+                ctx.getString(R.string.confirm_allow), ctx.getString(R.string.confirm_allow_all),
+                ctx.getString(R.string.confirm_deny)), stop);
+        RunState.phase(before);
+        Log.i(AgentService.TAG, call.name + ": confirmation " + (pick == 0 ? "allowed" : pick == 1 ? "allowed for the task"
+                : pick == 2 ? "declined" : "unanswered"));
+        if (pick == 0) return null;
+        if (pick == 1) {
+            allowAllCommits = true;
+            return null;
+        }
+        return call.name + " SKIPPED: the user " + (pick == 2 ? "declined" : "did not answer the confirmation for")
+                + " " + what + ". Do not do it or retry it; record it in update_memory `completed` as not done "
+                + "(declined by the user), go on with the other parts, and say so in the answer.";
+    }
+
+    private static String what(String declinedEntry) {
+        int at = declinedEntry.indexOf(". Do not");
+        return at > 0 ? declinedEntry.substring(0, at) : declinedEntry;
+    }
+
+    /** Shows the agent's question with its options; returns the ledger entry with the user's choice. */
+    private String askUser(AgentAccessibilityService a11y, JSONObject args) throws InterruptedException {
+        String question = args.optString("question").trim();
+        List<String> options = new ArrayList<>();
+        JSONArray o = args.optJSONArray("options");
+        for (int i = 0; o != null && i < o.length() && options.size() < 4; i++) {
+            String opt = o.optString(i).trim();
+            if (!opt.isEmpty()) options.add(clip(opt, 60));
+        }
+        String head = "ask_user('" + clip(question, 80) + "') -> ";
+        if (question.isEmpty() || options.size() < 2) return head + "FAILED: give a question and 2-4 options";
+        List<String> shown = new ArrayList<>(options);
+        shown.add(ctx.getString(R.string.ask_stop));
+        RunState.Phase before = RunState.phase();
+        RunState.phase(RunState.Phase.WAITING_USER);
+        int pick = UserPrompt.ask(a11y, ctx.getString(R.string.ask_title), question, shown, stop);
+        RunState.phase(before);
+        if (pick == options.size()) {
+            AgentService.stop(ctx);
+            return head + "the user chose to stop the task";
+        }
+        if (pick == UserPrompt.NO_ANSWER) {
+            return head + "no answer from the user; do not guess: finish(status=\"failed\") explaining what you needed";
+        }
+        return head + "the user chose '" + options.get(pick) + "'";
+    }
+
     // ------------------------------------------------------------------ skill replay
 
     /**
@@ -354,7 +428,8 @@ final class FlashLoop {
             } catch (Exception e) {
                 return replayNotice(i, total, "the recorded step is unreadable");
             }
-            String outcome = Actions.execute(a11y, obs, call);
+            String declined = confirm(a11y, obs, call);
+            String outcome = declined != null ? declined : Actions.execute(a11y, obs, call);
             RunRecord.Step rec = new RunRecord.Step();
             rec.index = run.steps.size() + 1;
             rec.offsetMs = t0 - run.startedAt;
@@ -363,7 +438,7 @@ final class FlashLoop {
             rec.obsMs = tObs - t0;
             rec.actMs = System.currentTimeMillis() - tObs;
             rec.actions.add(outcome);
-            boolean failed = outcome.contains("FAILED");
+            boolean failed = outcome.contains("FAILED") || outcome.contains("SKIPPED");
             if (failed) {
                 rec.failedAction = true;
             } else {
@@ -376,7 +451,8 @@ final class FlashLoop {
             remember(rec);
             Log.i(AgentService.TAG, String.format(Locale.US, "#%d replay obs %dms act %dms | %s",
                     rec.index, rec.obsMs, rec.actMs, call.name));
-            if (failed) return replayNotice(i + 1, total, "the replayed action failed");
+            if (failed) return replayNotice(i + 1, total, declined != null ? "the user declined a step: " + what(declined)
+                    : "the replayed action failed");
         }
         replayComplete = true;
         return "[REPLAY] Steps 1-" + total + " replayed a saved skill for this objective, without model calls. "
@@ -475,7 +551,14 @@ final class FlashLoop {
                 + uiLanguage + ") when the screen has too little text to tell; (c) only if both fail, the objective's "
                 + "language, synonyms and other paths. Translate the objective's terms into that language before searching "
                 + "or looking for a menu item (e.g. 定时开关机 is 'Scheduled power on/off' on an English screen, and stays "
-                + "定时开关机 on a Chinese one). Answer the user in the objective's language.\n\n"
+                + "定时开关机 on a Chinese one). Answer the user in the objective's language.\n"
+                + "8. Before a tap that sends, posts, calls, pays, buys, deletes, invites or changes an account or system "
+                + "setting, set `commits: true` and a `summary` of what will happen, in the objective's language (e.g. "
+                + "\"给 Alex 发送消息『明天见』\"). The user is asked to confirm; if they decline, do not do it.\n"
+                + "9. When you genuinely cannot tell what the user wants (two contacts with the same name, which account, "
+                + "a choice the objective leaves open), call `ask_user` alone in a turn with a short question and 2-4 "
+                + "options, in the objective's language. Do not ask about things the screen can answer.\n"
+                + "\n"
                 + lessonsSection()
                 + "# 6. TERMINATION (`finish`)\n"
                 + "- A part that involves another person (a call, a meeting invite, a friend request, a message) is done once "
@@ -685,12 +768,20 @@ final class FlashLoop {
                     new String[0]);
             return new JSONArray()
                     .put(tool("tap", "Tap an element (by index) or a point (x,y on 0-1000 scale).",
-                            new JSONObject().put("index", idx).put("x", x).put("y", y).put("target_description", desc),
+                            new JSONObject().put("index", idx).put("x", x).put("y", y).put("target_description", desc)
+                                    .put("commits", commits()).put("summary", summary()),
                             new String[0]))
                     .put(tool("long_press", "Press and hold an element or point, then lift. Use for hold-to-talk / hold-to-record buttons and long-press menus.",
                             new JSONObject().put("index", idx).put("x", x).put("y", y).put("target_description", desc)
-                                    .put("duration_ms", prop("integer", "How long to hold, 500-10000 ms (default 1000).")),
+                                    .put("duration_ms", prop("integer", "How long to hold, 500-10000 ms (default 1000)."))
+                                    .put("commits", commits()).put("summary", summary()),
                             new String[0]))
+                    .put(tool(ASK_TOOL, "Ask the user to choose when you cannot tell what they want. Call it alone in a turn.",
+                            new JSONObject().put("question", prop("string", "Short question, in the objective's language."))
+                                    .put("options", new JSONObject().put("type", "array")
+                                            .put("items", new JSONObject().put("type", "string"))
+                                            .put("description", "2-4 answers to pick from.")),
+                            new String[]{"question", "options"}))
                     .put(tool("type_text", "Replace the text of an input field. If index is given, the field is tapped first to focus it; otherwise the focused field is used.",
                             new JSONObject().put("text", prop("string", "Text to enter.")).put("index", idx),
                             new String[]{"text"}))
@@ -716,6 +807,15 @@ final class FlashLoop {
         } catch (Exception e) {
             throw new IllegalStateException(e);
         }
+    }
+
+    private static JSONObject commits() throws Exception {
+        return prop("boolean", "True when this action sends, posts, calls, pays, buys, deletes, invites or changes "
+                + "an account or system setting. The user is asked first.");
+    }
+
+    private static JSONObject summary() throws Exception {
+        return prop("string", "With commits: what will happen, in the objective's language.");
     }
 
     private static JSONObject prop(String type, String description) throws Exception {

@@ -7,6 +7,8 @@ All notable changes to this project are listed here. The format follows
 ## [Unreleased]
 
 ### Added
+- Confirmation of sensitive actions (Settings > Run, on by default): before a tap that sends, calls, pays, buys, deletes, posts, invites or changes a setting, a card at the bottom of the screen asks Allow / Allow for this task / Don't allow; no answer in 3 minutes means not done. The model flags such taps with `commits` and a `summary`, and the button text is checked as a backstop. Declined actions are recorded and never retried; skill replays are checked too.
+- `ask_user`: when the agent cannot tell what the user wants (two contacts with the same name, an open choice), it asks with 2-4 options and continues with the answer.
 - Experience: after each completed or failed run, one extra model call reviews where steps were wasted and records lessons in three layers (principles for any task, patterns for kinds of screens, facts about one app). A lesson is used in later prompts once two runs drew it or confirmed it, or the user approved it; lessons whose runs keep failing drop back to candidates. Settings > Experience lists them (approve, turn off, delete) and can turn the review off. Lessons stay on the phone and leave out personal data. Each run records what its review did.
 - Installed apps named in the task are listed for the model, which opens them with `open_app` instead of looking for icons on the home screen.
 - Notes from earlier runs: a task that was run before starts with that run's facts and dead ends, so a second run skips the first one's detours (on a Huawei phone, the same two-part task went from 19 steps / 118 s to 6 steps / 32 s).

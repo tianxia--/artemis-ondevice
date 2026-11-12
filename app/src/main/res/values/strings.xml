@@ -215,4 +215,14 @@
     <string name="lesson_approve">批准使用</string>
     <string name="lesson_unapprove">取消批准</string>
     <string name="confirm_delete_lesson">删除这条经验？</string>
+    <!-- Confirmation and questions during a run -->
+    <string name="phase_waiting_user">等待你确认</string>
+    <string name="confirm_title">需要你确认</string>
+    <string name="confirm_allow">允许</string>
+    <string name="confirm_allow_all">本任务都允许</string>
+    <string name="confirm_deny">不允许</string>
+    <string name="ask_title">Artemis 想问你</string>
+    <string name="ask_stop">停止任务</string>
+    <string name="setting_confirm">敏感操作前确认</string>
+    <string name="setting_confirm_hint">发送消息、打电话、付款、购买、删除、发布、邀请、修改设置之前，先在屏幕底部请你确认；3 分钟没有回答就不执行。</string>
 </resources>

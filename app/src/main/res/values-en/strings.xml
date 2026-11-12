@@ -211,4 +211,14 @@
     <string name="lesson_approve">Approve</string>
     <string name="lesson_unapprove">Remove approval</string>
     <string name="confirm_delete_lesson">Delete this lesson?</string>
+    <!-- Confirmation and questions during a run -->
+    <string name="phase_waiting_user">Waiting for you</string>
+    <string name="confirm_title">Please confirm</string>
+    <string name="confirm_allow">Allow</string>
+    <string name="confirm_allow_all">Allow for this task</string>
+    <string name="confirm_deny">Don\'t allow</string>
+    <string name="ask_title">Artemis has a question</string>
+    <string name="ask_stop">Stop the task</string>
+    <string name="setting_confirm">Confirm sensitive actions</string>
+    <string name="setting_confirm_hint">Before sending a message, calling, paying, buying, deleting, posting, inviting or changing a setting, asks you at the bottom of the screen; with no answer in 3 minutes it is not done.</string>
 </resources>

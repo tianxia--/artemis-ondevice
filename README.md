@@ -45,6 +45,9 @@ history and only the latest screenshot is sent.
 - **Skills (record and replay)**: save a completed run as a skill; the same task then replays the
   recorded steps without model calls, with one final model call to check the screen and answer.
   If a recorded target is missing, the model takes over from there.
+- **Confirmation**: before sending, calling, paying, buying, deleting, posting, inviting or changing a
+  setting, the agent asks you at the bottom of the screen (Allow / Allow for this task / Don't allow).
+  It can also ask you to choose when the task leaves something open.
 - **Experience**: after each task the model reviews which steps were wasted and distills lessons
   (principles, patterns for kinds of screens, facts about one app). A lesson reaches later tasks once
   two tasks drew or confirmed it, or you approve it in Settings > Experience; lessons whose tasks keep
