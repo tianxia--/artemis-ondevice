@@ -76,12 +76,23 @@ final class ProviderStore {
         String baseUrl;
         String api = API_OPENAI;
         List<ModelSpec> models = new ArrayList<>();
+        /** Optional prices per million input / output tokens, set by the user (0 = unknown). */
+        double priceIn, priceOut;
+        String currency = "$";
+
+        boolean hasPrice() { return priceIn > 0 || priceOut > 0; }
+
+        /** Estimated cost of these tokens, or NaN when no price is set. */
+        double cost(long in, long out) {
+            return hasPrice() ? (in * priceIn + out * priceOut) / 1_000_000d : Double.NaN;
+        }
 
         JSONObject toJson() throws Exception {
             JSONArray ms = new JSONArray();
             for (ModelSpec m : models) ms.put(m.toJson());
             return new JSONObject().put("id", id).put("name", name).put("base_url", baseUrl)
-                    .put("api", api).put("models", ms);
+                    .put("api", api).put("models", ms)
+                    .put("price_in", priceIn).put("price_out", priceOut).put("currency", currency);
         }
 
         static Provider fromJson(JSONObject o) {
@@ -90,6 +101,9 @@ final class ProviderStore {
             p.name = o.optString("name", "");
             p.baseUrl = o.optString("base_url");
             p.api = o.optString("api", API_OPENAI);
+            p.priceIn = o.optDouble("price_in", 0);
+            p.priceOut = o.optDouble("price_out", 0);
+            p.currency = o.optString("currency", "$");
             JSONArray ms = o.optJSONArray("models");
             if (ms != null) {
                 for (int i = 0; i < ms.length(); i++) p.models.add(ModelSpec.fromJson(ms.optJSONObject(i)));

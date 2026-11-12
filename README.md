@@ -48,6 +48,8 @@ history and only the latest screenshot is sent.
 - **Confirmation**: before sending, calling, paying, buying, deleting, posting, inviting or changing a
   setting, the agent asks you at the bottom of the screen (Allow / Allow for this task / Don't allow).
   It can also ask you to choose when the task leaves something open.
+- **Usage and limits**: token use per day, model and purpose, with an estimated cost when you enter
+  your provider's prices; a per-task and a daily token limit keep a run from burning tokens.
 - **Experience**: after each task the model reviews which steps were wasted and distills lessons
   (principles, patterns for kinds of screens, facts about one app). A lesson reaches later tasks once
   two tasks drew or confirmed it, or you approve it in Settings > Experience; lessons whose tasks keep

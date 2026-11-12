@@ -48,6 +48,10 @@
             android:exported="false" />
 
         <activity
+            android:name=".UsageActivity"
+            android:exported="false" />
+
+        <activity
             android:name=".ProviderEditActivity"
             android:exported="false"
             android:windowSoftInputMode="adjustResize" />

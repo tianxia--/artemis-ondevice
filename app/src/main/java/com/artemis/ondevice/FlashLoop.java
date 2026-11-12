@@ -169,6 +169,14 @@ final class FlashLoop {
                     break;
                 }
 
+                long used = (long) run.promptTokens() + run.completionTokens();
+                long runLimit = AppSettings.runTokenLimit(ctx);
+                if (runLimit > 0 && used >= runLimit) {
+                    Log.w(AgentService.TAG, "run token limit reached: " + used + " of " + runLimit);
+                    status = RunRecord.FAILED;
+                    answer = ctx.getString(R.string.limit_run_reached, Format.tokens(used), Format.tokens(runLimit));
+                    break;
+                }
                 RunState.phase(RunState.Phase.THINKING);
                 String prompt = buildUserPrompt(obs, step, finalTurn ? FINAL_TURN_WARNING : nudge);
                 ChatClient.Result r = client.complete(run.model, systemPrompt(), prompt,
@@ -304,6 +312,10 @@ final class FlashLoop {
         } catch (InterruptedException e) {
             status = RunRecord.STOPPED;
             Thread.currentThread().interrupt();
+        } catch (ChatClient.LimitReached e) {
+            status = RunRecord.FAILED;
+            answer = ctx.getString(R.string.limit_daily_reached, Format.tokens(UsageStore.todayTokens(ctx)),
+                    Format.tokens(AppSettings.dailyTokenLimit(ctx)));
         } catch (Exception e) {
             if (stop.stopped()) {
                 status = RunRecord.STOPPED;

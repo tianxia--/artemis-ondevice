@@ -44,7 +44,7 @@ public class ProviderEditActivity extends AppCompatActivity {
     private ProviderStore.Provider existing;
     private final List<ProviderStore.ModelSpec> models = new ArrayList<>();
 
-    private TextInputEditText id, name, url, key, modelInput;
+    private TextInputEditText id, name, url, key, modelInput, priceIn, priceOut, currency;
     private MaterialAutoCompleteTextView api;
     private ChipGroup modelChips;
     private TextView testResult;
@@ -70,6 +70,10 @@ public class ProviderEditActivity extends AppCompatActivity {
         api = findViewById(R.id.api_type);
         modelChips = findViewById(R.id.model_chips);
         modelInput = findViewById(R.id.model_input);
+        priceIn = findViewById(R.id.price_in);
+        priceOut = findViewById(R.id.price_out);
+        currency = findViewById(R.id.price_currency);
+        currency.setText("$");
         testResult = findViewById(R.id.test_result);
         fetchButton = findViewById(R.id.fetch_models);
         testButton = findViewById(R.id.test);
@@ -85,6 +89,9 @@ public class ProviderEditActivity extends AppCompatActivity {
             url.setText(existing.baseUrl);
             api.setText(existing.api, false);
             models.addAll(existing.models);
+            if (existing.priceIn > 0) priceIn.setText(plain(existing.priceIn));
+            if (existing.priceOut > 0) priceOut.setText(plain(existing.priceOut));
+            currency.setText(existing.currency);
             if (ProviderStore.hasApiKey(this, existing.id)) {
                 ((TextInputLayout) findViewById(R.id.key_layout)).setHint(R.string.api_key_keep);
             }
@@ -176,7 +183,23 @@ public class ProviderEditActivity extends AppCompatActivity {
         p.baseUrl = ProviderStore.normalizeBaseUrl(String.valueOf(url.getText()));
         p.api = String.valueOf(api.getText());
         p.models = new ArrayList<>(models);
+        p.priceIn = number(priceIn);
+        p.priceOut = number(priceOut);
+        String cur = String.valueOf(currency.getText()).trim();
+        p.currency = cur.isEmpty() ? "$" : FlashLoop.clip(cur, 4);
         return p;
+    }
+
+    private static double number(TextInputEditText f) {
+        try {
+            return Math.max(0, Double.parseDouble(String.valueOf(f.getText()).trim()));
+        } catch (NumberFormatException e) {
+            return 0;
+        }
+    }
+
+    private static String plain(double v) {
+        return java.math.BigDecimal.valueOf(v).stripTrailingZeros().toPlainString();
     }
 
     /** Typed key, else the stored one for an existing provider. */
@@ -287,7 +310,7 @@ public class ProviderEditActivity extends AppCompatActivity {
             String msg;
             boolean ok;
             try {
-                ChatClient.Result r = new ChatClient(p, keyFor(p)).complete(model, "You are a connectivity probe.",
+                ChatClient.Result r = new ChatClient(p, keyFor(p)).countAs(this, UsageStore.TEST).complete(model, "You are a connectivity probe.",
                         "Reply with the single word: pong", null, null, 64);
                 msg = getString(R.string.test_ok, model, (int) r.latencyMs);
                 ok = true;

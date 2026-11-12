@@ -43,7 +43,7 @@ final class TaskCorrector {
         final String model = active.model;
         final ChatClient client;
         try {
-            client = new ChatClient(p, ProviderStore.apiKey(ctx, p.id));
+            client = new ChatClient(p, ProviderStore.apiKey(ctx, p.id)).countAs(ctx, UsageStore.VOICE);
         } catch (Exception e) {
             Log.w(AgentService.TAG, "correction skipped: " + e.getClass().getSimpleName());
             return fallback;

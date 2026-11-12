@@ -30,6 +30,8 @@ public class AgentService extends Service implements RunState.Listener {
     private static final int NOTIFICATION_ID = 18890;
     private static final int DONE_NOTIFICATION_ID = 18891;
     private static final long START_SETTLE_MS = 600L;
+    /** Reviews stop once this share of the daily token limit is used. */
+    private static final double REVIEW_BUDGET_SHARE = 0.8;
 
     private volatile boolean stopRequested;
     private volatile ChatClient client;
@@ -109,7 +111,15 @@ public class AgentService extends Service implements RunState.Listener {
                     String key = ProviderStore.apiKey(ctx, provider.id);
                     // The screen that started the run is still animating away; don't capture it.
                     Thread.sleep(START_SETTLE_MS);
-                    client = new ChatClient(provider, key);
+                    long limit = AppSettings.dailyTokenLimit(ctx);
+                    long today = UsageStore.todayTokens(ctx);
+                    if (limit > 0 && today >= limit) {
+                        run.status = RunRecord.FAILED;
+                        run.answer = getString(R.string.limit_daily_reached, Format.tokens(today), Format.tokens(limit));
+                        run.endedAt = System.currentTimeMillis();
+                        return;
+                    }
+                    client = new ChatClient(provider, key).countAs(ctx, UsageStore.TASK);
                     new FlashLoop(ctx, client, run, new FlashLoop.StopSignal() {
                         @Override public boolean stopped() { return stopRequested; }
                     }, SkillStore.find(ctx, task)).run();
@@ -149,11 +159,15 @@ public class AgentService extends Service implements RunState.Listener {
         if (!ended) return;
         new Thread(() -> {
             ExperienceStore.recordUse(ctx, run.lessonIds, RunRecord.COMPLETED.equals(run.status), run.steps.size());
+            long limit = AppSettings.dailyTokenLimit(ctx);
             if (used == null || !AppSettings.reflect(ctx) || !Reflector.worthReviewing(run)) {
                 run.reflection = "skipped";
+            } else if (limit > 0 && UsageStore.todayTokens(ctx) >= limit * REVIEW_BUDGET_SHARE) {
+                // The rest of the day's tokens are kept for tasks.
+                run.reflection = "skipped: daily token limit nearly used";
             } else {
                 try {
-                    run.reflection = Reflector.review(ctx, used, run);
+                    run.reflection = Reflector.review(ctx, used.countAs(ctx, UsageStore.REVIEW), run);
                 } catch (Exception e) {
                     run.reflection = "failed: " + e.getClass().getSimpleName();
                 }

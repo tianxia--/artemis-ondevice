@@ -55,6 +55,8 @@ public class SettingsActivity extends AppCompatActivity {
         skillList = findViewById(R.id.skills);
         a11yState = findViewById(R.id.a11y_state);
 
+        findViewById(R.id.open_usage).setOnClickListener(
+                v -> startActivity(new Intent(this, UsageActivity.class)));
         findViewById(R.id.add_provider).setOnClickListener(
                 v -> startActivity(new Intent(this, ProviderEditActivity.class)));
         findViewById(R.id.a11y_row).setOnClickListener(

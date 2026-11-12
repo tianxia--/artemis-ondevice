@@ -55,6 +55,8 @@ final class ChatClient {
 
     static final class Result {
         String text = "";
+        /** The API returned no usage; the token counts are estimates. */
+        boolean estimated;
         /** Why generation stopped as the API reported it ("stop", "length", "end_turn", "max_tokens" ...). */
         String finishReason = "";
         final List<ToolCall> toolCalls = new ArrayList<>();
@@ -76,6 +78,22 @@ final class ChatClient {
     private volatile HttpURLConnection inFlight;
     private volatile boolean cancelled;
 
+    /** Where calls are counted (see {@link UsageStore}); null for calls that are not counted. */
+    private android.content.Context usageCtx;
+    private String purpose = UsageStore.TASK;
+
+    /** Counts this client's calls under {@code purpose} and holds them to the daily limit. */
+    ChatClient countAs(android.content.Context ctx, String purpose) {
+        this.usageCtx = ctx.getApplicationContext();
+        this.purpose = purpose;
+        return this;
+    }
+
+    /** Thrown before a call when today's tokens reached the daily limit. Not retried. */
+    static final class LimitReached extends IllegalStateException {
+        LimitReached(String m) { super(m); }
+    }
+
     ChatClient(ProviderStore.Provider provider, String apiKey) {
         this.provider = provider;
         this.apiKey = apiKey;
@@ -93,6 +111,14 @@ final class ChatClient {
 
     Result complete(String model, String system, String userText, byte[] jpeg, JSONArray tools,
                     int maxTokens) throws Exception {
+        if (usageCtx != null) {
+            long limit = AppSettings.dailyTokenLimit(usageCtx);
+            long today = UsageStore.todayTokens(usageCtx);
+            if (limit > 0 && today >= limit) {
+                throw new LimitReached("Today's token limit is reached (" + today + " of " + limit
+                        + "); it resets tomorrow, or raise it in Settings > Usage.");
+            }
+        }
         boolean anthropic = ProviderStore.API_ANTHROPIC.equals(provider.api);
         JSONObject body = anthropic
                 ? anthropicBody(model, system, userText, jpeg, tools, maxTokens)
@@ -102,6 +128,17 @@ final class ChatClient {
         JSONObject resp = post(path, body);
         Result r = anthropic ? parseAnthropic(resp) : parseOpenAi(resp);
         r.latencyMs = System.currentTimeMillis() - t0;
+        if (r.promptTokens == 0 && r.completionTokens == 0) {
+            // Some OpenAI-compatible servers return no usage; count something rather than nothing.
+            StringBuilder out = new StringBuilder(r.text);
+            for (ToolCall c : r.toolCalls) out.append(c.name).append(c.args);
+            r.promptTokens = UsageStore.estimateTokens(system + userText + (tools == null ? "" : tools.toString()), jpeg != null);
+            r.completionTokens = UsageStore.estimateTokens(out.toString(), false);
+            r.estimated = true;
+        }
+        if (usageCtx != null) {
+            UsageStore.record(usageCtx, provider.id, model, purpose, r.promptTokens, r.completionTokens, r.estimated);
+        }
         return r;
     }
 

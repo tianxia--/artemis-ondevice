@@ -20,6 +20,20 @@ final class Format {
         return String.format(Locale.US, "%.2fs", ms / 1000f);
     }
 
+    /** "$0.012" style; "" when the provider has no price. */
+    static String cost(ProviderStore.Provider p, long in, long out) {
+        if (p == null || !p.hasPrice()) return "";
+        double c = p.cost(in, out);
+        return p.currency + (c < 0.01 ? String.format(Locale.US, "%.4f", c) : c < 10
+                ? String.format(Locale.US, "%.3f", c) : String.format(Locale.US, "%.2f", c));
+    }
+
+    static String tokens(long n) {
+        if (n >= 1_000_000) return String.format(Locale.US, "%.1fM", n / 1_000_000f);
+        if (n >= 1000) return String.format(Locale.US, "%.1fk", n / 1000f);
+        return String.valueOf(n);
+    }
+
     static String tokens(int n) {
         if (n >= 1_000_000) return String.format(Locale.US, "%.1fM", n / 1_000_000f);
         if (n >= 1000) return String.format(Locale.US, "%.1fk", n / 1000f);

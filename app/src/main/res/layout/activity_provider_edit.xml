@@ -175,6 +175,71 @@
                     android:inputType="textNoSuggestions|textVisiblePassword" />
             </com.google.android.material.textfield.TextInputLayout>
 
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="20dp"
+                android:text="@string/price_title"
+                android:textAppearance="@style/TextAppearance.Artemis.Section" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="6dp"
+                android:text="@string/price_hint"
+                android:textAppearance="@style/TextAppearance.Artemis.Caption" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal">
+
+                <com.google.android.material.textfield.TextInputLayout
+                    style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="2"
+                    android:layout_marginEnd="6dp"
+                    android:hint="@string/price_in">
+
+                    <com.google.android.material.textfield.TextInputEditText
+                        android:id="@+id/price_in"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:inputType="numberDecimal" />
+                </com.google.android.material.textfield.TextInputLayout>
+
+                <com.google.android.material.textfield.TextInputLayout
+                    style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="2"
+                    android:layout_marginEnd="6dp"
+                    android:hint="@string/price_out">
+
+                    <com.google.android.material.textfield.TextInputEditText
+                        android:id="@+id/price_out"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:inputType="numberDecimal" />
+                </com.google.android.material.textfield.TextInputLayout>
+
+                <com.google.android.material.textfield.TextInputLayout
+                    style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_marginEnd="6dp"
+                    android:hint="@string/price_currency">
+
+                    <com.google.android.material.textfield.TextInputEditText
+                        android:id="@+id/price_currency"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:inputType="text" />
+                </com.google.android.material.textfield.TextInputLayout>
+            </LinearLayout>
+
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/test"
                 style="@style/Widget.Material3.Button.OutlinedButton"

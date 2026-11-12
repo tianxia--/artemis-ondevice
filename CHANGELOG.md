@@ -7,6 +7,7 @@ All notable changes to this project are listed here. The format follows
 ## [Unreleased]
 
 ### Added
+- Model usage and limits (Settings > Model usage and limits): every model call (tasks, reviews, voice correction, connection tests) is counted per day, model and purpose, with an estimate when the API returns no token counts. Optional prices per million tokens in the model service editor give an estimated cost, also in run details. A per-task token limit (default 300k) stops a run, and a daily limit (default 2M) refuses new runs; reviews stop at 80% of the daily limit. Limits are checked before each call.
 - Confirmation of sensitive actions (Settings > Run, on by default): before a tap that sends, calls, pays, buys, deletes, posts, invites or changes a setting, a card at the bottom of the screen asks Allow / Allow for this task / Don't allow; no answer in 3 minutes means not done. The model flags such taps with `commits` and a `summary`, and the button text is checked as a backstop. Declined actions are recorded and never retried; skill replays are checked too.
 - `ask_user`: when the agent cannot tell what the user wants (two contacts with the same name, an open choice), it asks with 2-4 options and continues with the answer.
 - Experience: after each completed or failed run, one extra model call reviews where steps were wasted and records lessons in three layers (principles for any task, patterns for kinds of screens, facts about one app). A lesson is used in later prompts once two runs drew it or confirmed it, or the user approved it; lessons whose runs keep failing drop back to candidates. Settings > Experience lists them (approve, turn off, delete) and can turn the review off. Lessons stay on the phone and leave out personal data. Each run records what its review did.
@@ -17,6 +18,7 @@ All notable changes to this project are listed here. The format follows
 - Task memory: the model keeps a running record of completed parts, facts found and dead ends with a new `update_memory` tool. It is shown at the top of every turn for the whole run, so progress is no longer lost once older steps leave the 6-step history, and finishing no longer needs earlier parts to be visible again.
 
 ### Changed
+- The step limit per task now defaults to 50 instead of none (still adjustable in Settings > Run; 0 = no limit).
 - Every index-targeted action re-reads the screen and finds its element again by label, so a list that moved while the model was thinking no longer gets tapped in the wrong place; an action whose target is gone is skipped.
 - Within one turn, the rest of the actions stop at the first failed or skipped action, and x,y actions after a tap, swipe, back, home or open_app are skipped (their point was chosen on the old screen).
 - After a failed or skipped action the next turn is told to re-orient against the task memory instead of redoing finished parts, and the failed step's reasoning is marked as unreliable in the history.
