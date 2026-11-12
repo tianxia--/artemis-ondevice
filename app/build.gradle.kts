@@ -11,8 +11,8 @@ android {
         // AccessibilityService.takeScreenshot needs Android 11 (API 30).
         minSdk = 30
         targetSdk = 35
-        versionCode = 2
-        versionName = "0.2.0"
+        versionCode = 3
+        versionName = "0.3.0"
         // sherpa-onnx ships native libs for four ABIs; phones are arm64, the emulator x86_64.
         ndk { abiFilters += listOf("arm64-v8a", "x86_64") }
     }

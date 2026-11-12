@@ -6,6 +6,16 @@ All notable changes to this project are listed here. The format follows
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-12
+
+Steadier runs (task memory, stale-screen guards, the screen's language), learning from finished runs, confirmation of sensitive actions, usage limits, and no money apps or money actions.
+
+### Upgrading from 0.2.0
+- Taps that send, call, delete, post, invite or change a setting now ask you first (Settings > Run > Confirm sensitive actions).
+- Banking, payment, wallet, securities and crypto apps, WeChat, QQ and Alipay, and tasks about payments, transfers or purchases are refused. This cannot be turned off.
+- A task stops after 50 steps or 300k tokens, and no new task starts after 2M tokens in a day. All three are adjustable.
+- Each finished task gets one extra model call to review it (Settings > Experience > Review each finished task turns it off).
+
 ### Added
 - Money is off limits, with no setting to turn it off: banking, payment, wallet, securities and crypto apps (a list of known apps plus app and package name patterns such as bank, 银行, pay, 支付, wallet, 证券) are never opened or operated, tasks about transfers, payments, purchases or such apps are refused before they start, and buttons that pay, transfer or buy are never tapped, also over MCP and in skill replays. This replaces the WeChat / QQ / Alipay block.
 - Model usage and limits (Settings > Model usage and limits): every model call (tasks, reviews, voice correction, connection tests) is counted per day, model and purpose, with an estimate when the API returns no token counts. Optional prices per million tokens in the model service editor give an estimated cost, also in run details. A per-task token limit (default 300k) stops a run, and a daily limit (default 2M) refuses new runs; reviews stop at 80% of the daily limit. Limits are checked before each call.
@@ -61,6 +71,7 @@ First public release.
 - Base URL masked on screen by default and removed from error messages.
 - WeChat, QQ and Alipay are never operated.
 
-[Unreleased]: https://github.com/tianxia--/artemis-ondevice/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/tianxia--/artemis-ondevice/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/tianxia--/artemis-ondevice/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/tianxia--/artemis-ondevice/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/tianxia--/artemis-ondevice/releases/tag/v0.1.0

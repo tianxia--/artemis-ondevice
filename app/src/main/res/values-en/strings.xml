@@ -247,7 +247,7 @@
     <string name="limit_run">Token limit per task</string>
     <string name="limit_run_hint">The task stops beyond it. A typical task uses 20k to 60k. 0 means no limit</string>
     <string name="limit_daily">Token limit per day</string>
-    <string name="limit_daily_hint">All model calls together; once reached, no tasks or reviews run that day (reviews stop at 80%%). 0 means no limit</string>
+    <string name="limit_daily_hint">All model calls together; once reached, no tasks or reviews run that day (reviews stop at 80%). 0 means no limit</string>
     <string name="limit_steps_note">The step limit per task is in Settings > Run (default 50).</string>
     <string name="limit_run_reached">This task used %1$s tokens, the per-task limit of %2$s, and was stopped. Change it in Settings > Model usage and limits.</string>
     <string name="limit_daily_reached">%1$s tokens were used today, the daily limit of %2$s; it resets tomorrow. Change it in Settings > Model usage and limits.</string>
