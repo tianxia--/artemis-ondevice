@@ -256,4 +256,7 @@
     <string name="price_in">Input / million</string>
     <string name="price_out">Output / million</string>
     <string name="price_currency">Currency</string>
+    <string name="overview_tokens_today">Tokens today</string>
+    <string name="overview_cost_today">Cost today</string>
+    <string name="overview_no_price">No price set</string>
 </resources>

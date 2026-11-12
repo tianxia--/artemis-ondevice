@@ -306,6 +306,30 @@
                     android:layout_weight="1" />
             </LinearLayout>
 
+            <!-- Today's model usage; tapping opens the usage screen. -->
+            <LinearLayout
+                android:id="@+id/usage_row"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:orientation="horizontal">
+
+                <include
+                    android:id="@+id/stat_tokens"
+                    layout="@layout/view_metric"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginEnd="8dp"
+                    android:layout_weight="1" />
+
+                <include
+                    android:id="@+id/stat_cost"
+                    layout="@layout/view_metric"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1" />
+            </LinearLayout>
+
             <!-- History -->
             <LinearLayout
                 android:layout_width="match_parent"

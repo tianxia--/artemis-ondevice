@@ -263,6 +263,38 @@ public class MainActivity extends AppCompatActivity implements RunState.Listener
         });
     }
 
+    /** Today's tokens and cost; both tiles open the usage screen. */
+    private void renderUsage() {
+        java.util.Map<String, ProviderStore.Provider> providers = new java.util.HashMap<>();
+        for (ProviderStore.Provider p : ProviderStore.list(this)) providers.put(p.id, p);
+        long tokens = 0;
+        double cost = 0;
+        String currency = null;
+        boolean priced = false, unpriced = false, mixed = false;
+        for (UsageStore.Row r : UsageStore.rows(this, 1)) {
+            tokens += r.tokens();
+            ProviderStore.Provider p = providers.get(r.provider);
+            if (p == null || !p.hasPrice()) {
+                unpriced = true;
+                continue;
+            }
+            if (currency != null && !currency.equals(p.currency)) mixed = true;
+            currency = p.currency;
+            cost += p.cost(r.in, r.out);
+            priced = true;
+        }
+        long limit = AppSettings.dailyTokenLimit(this);
+        String tokenText = Format.tokens(tokens) + (limit > 0 ? " / " + Format.tokens(limit) : "");
+        String costText = !priced ? (tokens == 0 ? "–" : getString(R.string.overview_no_price))
+                : mixed ? "–" : currency + (cost < 0.01 ? String.format(java.util.Locale.US, "%.4f", cost)
+                : String.format(java.util.Locale.US, "%.2f", cost)) + (unpriced ? "+" : "");
+        metric(R.id.stat_tokens, tokenText, R.string.overview_tokens_today);
+        metric(R.id.stat_cost, costText, R.string.overview_cost_today);
+        View.OnClickListener open = v -> startActivity(new Intent(this, UsageActivity.class));
+        findViewById(R.id.stat_tokens).setOnClickListener(open);
+        findViewById(R.id.stat_cost).setOnClickListener(open);
+    }
+
     private void renderOverview(List<RunRecord> runs) {
         int done = 0, ok = 0, steps = 0;
         long time = 0;
@@ -275,6 +307,7 @@ public class MainActivity extends AppCompatActivity implements RunState.Listener
         }
         metric(R.id.stat_runs, String.valueOf(done), R.string.overview_runs);
         metric(R.id.stat_success, done == 0 ? "–" : Math.round(100f * ok / done) + "%", R.string.overview_success);
+        renderUsage();
         metric(R.id.stat_step, steps == 0 ? "–" : Format.duration(time / steps), R.string.overview_step);
     }
 

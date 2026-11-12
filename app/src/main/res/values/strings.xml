@@ -260,4 +260,7 @@
     <string name="price_in">输入 / 百万</string>
     <string name="price_out">输出 / 百万</string>
     <string name="price_currency">货币</string>
+    <string name="overview_tokens_today">今日 tokens</string>
+    <string name="overview_cost_today">今日花费</string>
+    <string name="overview_no_price">未填价格</string>
 </resources>
