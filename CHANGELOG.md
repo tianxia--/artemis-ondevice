@@ -6,6 +6,9 @@ All notable changes to this project are listed here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+- Confirmation summaries, questions and the final answer are written in the language of the task, so an English task no longer gets a Chinese confirmation or answer.
+
 ## [0.3.0] - 2026-11-12
 
 Steadier runs (task memory, stale-screen guards, the screen's language), learning from finished runs, confirmation of sensitive actions, usage limits, and no money apps or money actions.

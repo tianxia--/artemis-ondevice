@@ -107,6 +107,8 @@ final class FlashLoop {
     private List<Experience> generalLessons = new ArrayList<>();
     private List<Experience> allLessons = new ArrayList<>();
     private final String uiLanguage = uiLanguage();
+    /** The language the user wrote the task in; summaries, questions and the answer use it. */
+    private String taskLanguage = "the objective's language";
     private boolean replayComplete;
     /** The user chose "allow for this task" on a confirmation. */
     private boolean allowAllCommits;
@@ -134,6 +136,7 @@ final class FlashLoop {
             return;
         }
         earlierNotes = earlierNotes();
+        taskLanguage = textLanguage(run.task);
         namedApps = Actions.appsNamedIn(ctx, run.task);
         allLessons = ExperienceStore.list(ctx);
         generalLessons = ExperienceStore.general(ctx);
@@ -573,13 +576,14 @@ final class FlashLoop {
                 + uiLanguage + ") when the screen has too little text to tell; (c) only if both fail, the objective's "
                 + "language, synonyms and other paths. Translate the objective's terms into that language before searching "
                 + "or looking for a menu item (e.g. 定时开关机 is 'Scheduled power on/off' on an English screen, and stays "
-                + "定时开关机 on a Chinese one). Answer the user in the objective's language.\n"
+                + "定时开关机 on a Chinese one). Answer the user in " + taskLanguage + ".\n"
                 + "8. Before a tap that sends, posts, calls, pays, buys, deletes, invites or changes an account or system "
-                + "setting, set `commits: true` and a `summary` of what will happen, in the objective's language (e.g. "
-                + "\"给 Alex 发送消息『明天见』\"). The user is asked to confirm; if they decline, do not do it.\n"
+                + "setting, set `commits: true` and a `summary` of what will happen, in " + taskLanguage + " (e.g. "
+                + "\"Send 'see you tomorrow' to Alex\" for an English objective). The user is asked to confirm; if they "
+                + "decline, do not do it.\n"
                 + "9. When you genuinely cannot tell what the user wants (two contacts with the same name, which account, "
                 + "a choice the objective leaves open), call `ask_user` alone in a turn with a short question and 2-4 "
-                + "options, in the objective's language. Do not ask about things the screen can answer.\n"
+                + "options, in " + taskLanguage + ". Do not ask about things the screen can answer.\n"
                 + "\n"
                 + lessonsSection()
                 + "# 6. TERMINATION (`finish`)\n"
@@ -589,8 +593,8 @@ final class FlashLoop {
                 + "or invite again. Mention the outcome in `answer`.\n"
                 + "- Call `finish(status=\"completed\", answer=...)` once every part of the objective is done: parts listed "
                 + "in TASK MEMORY as completed count as done and need not be visible again (never go back to re-check them); "
-                + "the last part must be visible on the current screen. Put the requested information in `answer`, in the "
-                + "language of the objective.\n"
+                + "the last part must be visible on the current screen. Put the requested information in `answer`, in "
+                + taskLanguage + ".\n"
                 + "- Call `finish(status=\"failed\", answer=...)` with the exact blocking reason if the task is impossible.";
     }
 
@@ -690,6 +694,35 @@ final class FlashLoop {
             if (!run.lessonIds.contains(e.id)) run.lessonIds.add(e.id);
         }
         return sb.append('\n').toString();
+    }
+
+    /**
+     * The language a text is written in, for the prompt: Chinese, Japanese, Korean, English (Latin
+     * script) and a few others by script; falls back to "the objective's language".
+     */
+    static String textLanguage(String text) {
+        int han = 0, kana = 0, hangul = 0, latin = 0, cyrillic = 0, arabic = 0;
+        for (int i = 0; i < text.length(); ) {
+            int cp = text.codePointAt(i);
+            i += Character.charCount(cp);
+            if (!Character.isLetter(cp)) continue;
+            switch (Character.UnicodeScript.of(cp)) {
+                case HAN: han++; break;
+                case HIRAGANA: case KATAKANA: kana++; break;
+                case HANGUL: hangul++; break;
+                case LATIN: latin++; break;
+                case CYRILLIC: cyrillic++; break;
+                case ARABIC: arabic++; break;
+                default: break;
+            }
+        }
+        if (kana > 0) return "Japanese (the objective's language)";
+        if (hangul > 0) return "Korean (the objective's language)";
+        if (han > 0) return "Chinese (the objective's language)";
+        if (cyrillic > latin && cyrillic > arabic) return "the objective's language (Cyrillic script)";
+        if (arabic > latin) return "Arabic (the objective's language)";
+        if (latin > 0) return "English, or whatever language the objective is written in";
+        return "the objective's language";
     }
 
     /** The phone's own language (not this app's in-app language choice). */
