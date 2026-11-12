@@ -1,6 +1,7 @@
 package com.artemis.ondevice;
 
 import android.util.Base64;
+import android.util.Log;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -37,9 +38,13 @@ final class ChatClient {
      * reads, so a half-dead connection (e.g. after the device slept) or a trickling server could
      * otherwise block a run forever; the watchdog closes the connection at this deadline.
      */
-    static final long REQUEST_DEADLINE_MS = 90_000;
-    /** Bounded: one retry on 429 / 5xx / IO errors (including a deadline hit). */
-    private static final int MAX_ATTEMPTS = 2;
+    static final long REQUEST_DEADLINE_MS = 60_000;
+    /**
+     * Retries on 429 / 5xx / IO errors (including a deadline hit), waiting longer each time: a
+     * phone's connection drops for seconds at a time, and one blip must not end a run that was
+     * going well.
+     */
+    private static final long[] RETRY_WAIT_MS = {2_000, 5_000, 10_000};
     private static final ScheduledExecutorService WATCHDOG = Executors.newSingleThreadScheduledExecutor();
 
     static final class ToolCall {
@@ -210,7 +215,7 @@ final class ChatClient {
 
     private JSONObject request(String method, String path, JSONObject body) throws Exception {
         IOException last = null;
-        for (int attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+        for (int attempt = 0; attempt <= RETRY_WAIT_MS.length; attempt++) {
             if (cancelled) throw new IOException("Cancelled");
             try {
                 return once(method, path, body);
@@ -221,7 +226,11 @@ final class ChatClient {
                 if (cancelled) throw new IOException("Cancelled");
                 last = e;
             }
-            if (attempt < MAX_ATTEMPTS) Thread.sleep(1000L);
+            if (attempt < RETRY_WAIT_MS.length) {
+                Log.w(AgentService.TAG, "model request failed (" + last.getClass().getSimpleName() + "); retry "
+                        + (attempt + 1) + "/" + RETRY_WAIT_MS.length + " in " + RETRY_WAIT_MS[attempt] / 1000 + "s");
+                Thread.sleep(RETRY_WAIT_MS[attempt]);
+            }
         }
         throw last;
     }

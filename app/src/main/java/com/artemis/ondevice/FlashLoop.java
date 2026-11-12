@@ -103,6 +103,9 @@ final class FlashLoop {
     private final StopSignal stop;
     /** Saved skill to replay before the model takes over, or null. */
     private final Skill skill;
+    /** Facts and dead ends from the latest earlier run of the same task, as a prompt section, or "". */
+    private String earlierNotes = "";
+    private final String uiLanguage = uiLanguage();
     private boolean replayComplete;
     private final Deque<String> history = new ArrayDeque<>();
     private final Deque<String> recentStates = new ArrayDeque<>();
@@ -127,6 +130,7 @@ final class FlashLoop {
             run.status = RunRecord.FAILED;
             return;
         }
+        earlierNotes = earlierNotes();
         try {
             if (skill != null) nudge = replay();
             // Replayed steps cost no model call and do not count against the step cap.
@@ -451,8 +455,18 @@ final class FlashLoop {
                 + "they run in order, and the rest of the turn stops at the first failed or skipped action.\n"
                 + "6. If `type_text` reports no editable field, it has put your text on the clipboard: long-press the input "
                 + "field and tap Paste (粘贴) instead of typing letter by letter on the keyboard. Never tap Paste at any other "
-                + "time: the clipboard may hold the user's private data.\n\n"
+                + "time: the clipboard may hold the user's private data.\n"
+                + "7. Language of searches and labels, in this order: (a) the language the current screen shows (each turn "
+                + "says which script dominates the screen text; check the screenshot too); (b) the phone's system language ("
+                + uiLanguage + ") when the screen has too little text to tell; (c) only if both fail, the objective's "
+                + "language, synonyms and other paths. Translate the objective's terms into that language before searching "
+                + "or looking for a menu item (e.g. 定时开关机 is 'Scheduled power on/off' on an English screen, and stays "
+                + "定时开关机 on a Chinese one). Answer the user in the objective's language.\n\n"
                 + "# 6. TERMINATION (`finish`)\n"
+                + "- A part that involves another person (a call, a meeting invite, a friend request, a message) is done once "
+                + "you have performed it. If they reject, decline, are busy or do not answer, that is still done: record it in "
+                + "`completed` with the outcome (e.g. \"called Alex: he rejected the call\"), move on, and never place, send "
+                + "or invite again. Mention the outcome in `answer`.\n"
                 + "- Call `finish(status=\"completed\", answer=...)` once every part of the objective is done: parts listed "
                 + "in TASK MEMORY as completed count as done and need not be visible again (never go back to re-check them); "
                 + "the last part must be visible on the current screen. Put the requested information in `answer`, in the "
@@ -461,7 +475,7 @@ final class FlashLoop {
     }
 
     private String buildUserPrompt(Observation obs, int step, String notice) {
-        StringBuilder sb = new StringBuilder(run.memory.render()).append('\n');
+        StringBuilder sb = new StringBuilder(earlierNotes).append(run.memory.render()).append('\n');
         if (!history.isEmpty()) {
             sb.append("# EXECUTION HISTORY (last ").append(history.size()).append(" steps)\n");
             for (String h : history) sb.append(h).append('\n');
@@ -471,7 +485,9 @@ final class FlashLoop {
         sb.append("# CURRENT OBSERVATION [").append(clock(System.currentTimeMillis())).append("] (step ").append(step);
         if (run.maxSteps > 0) sb.append(" of max ").append(run.maxSteps);
         sb.append(")\n");
-        sb.append("Foreground app: ").append(obs.packageName.isEmpty() ? "unknown" : obs.packageName).append('\n');
+        sb.append("Foreground app: ").append(obs.packageName.isEmpty() ? "unknown" : obs.packageName)
+                .append(" | Screen text: ").append(screenScript(obs))
+                .append(" | Phone language: ").append(uiLanguage).append('\n');
         if (!run.screenshot) sb.append("No screenshot is attached (text-only mode); rely on the element list.\n");
         else if (obs.jpeg == null) sb.append("Screenshot unavailable (").append(obs.screenshotError).append("); rely on the element list.\n");
         sb.append("--- Visible UI Elements ---\n").append(obs.elementsText());
@@ -486,6 +502,76 @@ final class FlashLoop {
                 + thought + " -> "
                 + (s.actions.isEmpty() ? "(no tool call)" : TextUtils.join(" ; ", s.actions)));
         while (history.size() > HISTORY_STEPS) history.removeFirst();
+    }
+
+    /**
+     * Which writing system dominates the screen's own text (quoted label text only, not the list's
+     * English field names): a hint for the language to search and look for labels in.
+     */
+    static String screenScript(Observation obs) {
+        java.util.Map<String, Integer> counts = new java.util.HashMap<>();
+        int total = 0;
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("(?:Text|Desc|Hint): '([^']*)'").matcher("");
+        for (Observation.Element e : obs.elements) {
+            m.reset(e.label);
+            while (m.find()) {
+                String text = m.group(1);
+                for (int i = 0; i < text.length(); ) {
+                    int cp = text.codePointAt(i);
+                    i += Character.charCount(cp);
+                    if (!Character.isLetter(cp)) continue;
+                    String script = scriptName(Character.UnicodeScript.of(cp));
+                    counts.put(script, counts.getOrDefault(script, 0) + 1);
+                    total++;
+                }
+            }
+        }
+        if (total < 10) return "too little text to tell";
+        String top = null;
+        for (java.util.Map.Entry<String, Integer> c : counts.entrySet()) {
+            if (top == null || c.getValue() > counts.get(top)) top = c.getKey();
+        }
+        int pct = Math.round(100f * counts.get(top) / total);
+        return pct >= 60 ? "mostly " + top + " (" + pct + "%)" : "mixed, largest " + top + " (" + pct + "%)";
+    }
+
+    private static String scriptName(Character.UnicodeScript s) {
+        switch (s) {
+            case HAN: return "Chinese characters";
+            case LATIN: return "Latin script (e.g. English)";
+            case HIRAGANA: case KATAKANA: return "Japanese kana";
+            case HANGUL: return "Korean";
+            case CYRILLIC: return "Cyrillic (e.g. Russian)";
+            case ARABIC: return "Arabic";
+            case THAI: return "Thai";
+            case DEVANAGARI: return "Devanagari (e.g. Hindi)";
+            default: return s.name();
+        }
+    }
+
+    /** The phone's own language (not this app's in-app language choice). */
+    private static String uiLanguage() {
+        java.util.Locale l = android.content.res.Resources.getSystem().getConfiguration().getLocales().get(0);
+        return l.getDisplayName(java.util.Locale.ENGLISH) + " (" + l.toLanguageTag() + ")";
+    }
+
+    /**
+     * What the latest earlier run of the same task (case, spaces and punctuation ignored) found
+     * and ruled out, so a second run does not repeat the first one's detours.
+     */
+    private String earlierNotes() {
+        String task = Skill.normalize(run.task);
+        for (RunRecord r : RunStore.list(ctx)) {
+            if (r.id.equals(run.id) || !Skill.normalize(r.task).equals(task)) continue;
+            if (r.memory.facts.isEmpty() && r.memory.deadEnds.isEmpty()) continue;
+            StringBuilder sb = new StringBuilder("# NOTES FROM AN EARLIER RUN OF THIS SAME TASK (it ended: ")
+                    .append(r.status).append(")\n");
+            for (String f : r.memory.facts) sb.append("- found: ").append(f).append('\n');
+            for (String d : r.memory.deadEnds) sb.append("- dead end, skip it: ").append(d).append('\n');
+            return sb.append("Start from what was found and skip the dead ends; the screen may differ, so check it.\n\n")
+                    .toString();
+        }
+        return "";
     }
 
     private static boolean hasIndex(ChatClient.ToolCall call) {

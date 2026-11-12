@@ -7,6 +7,9 @@ All notable changes to this project are listed here. The format follows
 ## [Unreleased]
 
 ### Added
+- Notes from earlier runs: a task that was run before starts with that run's facts and dead ends, so a second run skips the first one's detours (on a Huawei phone, the same two-part task went from 19 steps / 118 s to 6 steps / 32 s).
+- Each turn reports which writing system dominates the screen text and the phone's system language; searches and label lookups use the screen's language first, then the system language, then the task's own language.
+- A part that involves another person (a call, an invite, a message) counts as done once performed, even if they reject or do not answer; it is noted and never retried.
 - Task memory: the model keeps a running record of completed parts, facts found and dead ends with a new `update_memory` tool. It is shown at the top of every turn for the whole run, so progress is no longer lost once older steps leave the 6-step history, and finishing no longer needs earlier parts to be visible again.
 
 ### Changed
@@ -14,6 +17,7 @@ All notable changes to this project are listed here. The format follows
 - Within one turn, the rest of the actions stop at the first failed or skipped action, and x,y actions after a tap, swipe, back, home or open_app are skipped (their point was chosen on the old screen).
 - After a failed or skipped action the next turn is told to re-orient against the task memory instead of redoing finished parts, and the failed step's reasoning is marked as unreliable in the history.
 - Anthropic requests use temperature 0.2, like OpenAI-compatible ones.
+- Model requests retry three times (after 2, 5 and 10 s) instead of once, and each attempt times out after 60 s instead of 90 s: a dropped connection no longer ends a run that was going well.
 
 ## [0.2.0] - 2026-11-09
 
