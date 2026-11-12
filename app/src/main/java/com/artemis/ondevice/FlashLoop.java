@@ -66,11 +66,23 @@ final class FlashLoop {
                     + "screen with TASK MEMORY to see which part of the objective you are on. Do not redo parts listed as "
                     + "completed, and do not trust conclusions you drew in the failed step.";
 
+    private static final String DECLINED_NOTICE =
+            "[USER DECLINED] The user declined the last action, so it stays undone. Do not retry it or look for "
+                    + "another way to do it (another screen, menu, shortcut or app doing the same thing is the same action). "
+                    + "Record it in `completed` as not done because the user declined, never in `dead_ends`. "
+                    + "If other parts of the objective remain, do them; otherwise call finish now "
+                    + "(status \"completed\" if everything else was done) and say in the answer which part was not done "
+                    + "because the user declined it.";
+    private static final String MEMORY_ONLY_NUDGE =
+            "You only updated the memory last turn. Take the next action, or call finish if nothing is left to do.";
+
     /** Actions that may move to another screen; x,y targets after them in the same turn are stale. */
     private static final Set<String> NAVIGATING = new HashSet<>(Arrays.asList(
             "tap", "long_press", "swipe", "back", "home", "open_app"));
     static final String MEMORY_TOOL = "update_memory";
     static final String ASK_TOOL = "ask_user";
+    private static final java.util.regex.Pattern USER_DECISION =
+            java.util.regex.Pattern.compile("(?i)declin|refus|confirm|拒绝|确认|不允许|commits");
 
     /** How long replay waits for a recorded target to appear (the screen may still be moving). */
     private static final long REPLAY_FIND_MS = 4000;
@@ -286,6 +298,14 @@ final class FlashLoop {
                     break;
                 }
                 if (failStreak == FAIL_WARN && nudge == null) nudge = FAIL_WARNING;
+                boolean declined = false, acted = false;
+                for (String a : rec.actions) {
+                    if (a.contains("SKIPPED: the user declined") || a.contains("did not answer the confirmation")
+                            || a.contains("never pays")) declined = true;
+                    if (!a.startsWith(MEMORY_TOOL)) acted = true;
+                }
+                if (declined) nudge = DECLINED_NOTICE;
+                else if (!acted && !r.toolCalls.isEmpty() && nudge == null) nudge = MEMORY_ONLY_NUDGE;
                 if (rec.failedAction && nudge == null) nudge = RECOVER_NOTICE;
                 if (finalTurn) {
                     status = RunRecord.FAILED;
@@ -349,8 +369,9 @@ final class FlashLoop {
             return null;
         }
         return call.name + " SKIPPED: the user " + (pick == 2 ? "declined" : "did not answer the confirmation for")
-                + " " + what + ". Do not do it or retry it; record it in update_memory `completed` as not done "
-                + "(declined by the user), go on with the other parts, and say so in the answer.";
+                + " " + what + ". Do not do it, retry it or reach the same result another way; record it in "
+                + "update_memory `completed` as not done (declined by the user), not in `dead_ends`; go on with the "
+                + "other parts, and say so in the answer.";
     }
 
     private static String what(String declinedEntry) {
@@ -688,8 +709,12 @@ final class FlashLoop {
             if (r.memory.facts.isEmpty() && r.memory.deadEnds.isEmpty()) continue;
             StringBuilder sb = new StringBuilder("# NOTES FROM AN EARLIER RUN OF THIS SAME TASK (it ended: ")
                     .append(r.status).append(")\n");
-            for (String f : r.memory.facts) sb.append("- found: ").append(f).append('\n');
-            for (String d : r.memory.deadEnds) sb.append("- dead end, skip it: ").append(d).append('\n');
+            // The user's earlier decisions (declined confirmations) are not carried over: a new run of
+            // the task is a new request, and a "declined" note would send the agent around the decline.
+            for (String f : r.memory.facts) if (!USER_DECISION.matcher(f).find()) sb.append("- found: ").append(f).append('\n');
+            for (String d : r.memory.deadEnds) {
+                if (!USER_DECISION.matcher(d).find()) sb.append("- dead end, skip it: ").append(d).append('\n');
+            }
             return sb.append("Start from what was found and skip the dead ends; the screen may differ, so check it.\n\n")
                     .toString();
         }
@@ -764,7 +789,8 @@ final class FlashLoop {
                             .put("facts", new JSONObject(list.toString()).put("description",
                                     "Things found that later steps need: where a feature is, a working search term, values to report."))
                             .put("dead_ends", new JSONObject(list.toString()).put("description",
-                                    "Paths that proved useless, e.g. \"Settings search for 关机: no results\"."))
+                                    "Paths that proved useless on the phone, e.g. \"Settings search for 关机: no results\". "
+                                    + "Never the user's decisions: a declined confirmation goes to completed as not done."))
                             .put("next", prop("string", "The next part to do.")),
                     new String[0]);
             return new JSONArray()
