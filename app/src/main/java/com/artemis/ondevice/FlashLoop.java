@@ -77,6 +77,17 @@ final class FlashLoop {
         return task != null && BLOCKED_IN_TASK.matcher(task).find();
     }
 
+    /** After a failed or skipped action: re-orient against the task memory before going on. */
+    private static final String RECOVER_NOTICE =
+            "[NOTICE] An action in your last step failed or was skipped. Before acting, re-orient: compare the current "
+                    + "screen with TASK MEMORY to see which part of the objective you are on. Do not redo parts listed as "
+                    + "completed, and do not trust conclusions you drew in the failed step.";
+
+    /** Actions that may move to another screen; x,y targets after them in the same turn are stale. */
+    private static final Set<String> NAVIGATING = new HashSet<>(Arrays.asList(
+            "tap", "long_press", "swipe", "back", "home", "open_app"));
+    static final String MEMORY_TOOL = "update_memory";
+
     /** How long replay waits for a recorded target to appear (the screen may still be moving). */
     private static final long REPLAY_FIND_MS = 4000;
     private static final long REPLAY_POLL_MS = 250;
@@ -160,11 +171,24 @@ final class FlashLoop {
 
                 boolean finished = false;
                 nudge = r.toolCalls.isEmpty() ? NO_TOOL_NUDGE : null;
+                // The memory describes what the current screen confirms, so it is applied before the actions.
+                for (ChatClient.ToolCall call : r.toolCalls) {
+                    if (!MEMORY_TOOL.equals(call.name)) continue;
+                    run.memory.update(call.args);
+                    rec.actions.add(MEMORY_TOOL + "() ok");
+                }
                 int n = 0;
                 int okActions = 0;
                 long pausedMs = 0;
+                boolean navigated = false;
+                boolean blocked = false;
                 for (ChatClient.ToolCall call : r.toolCalls) {
+                    if (MEMORY_TOOL.equals(call.name)) continue;
                     if (n++ >= MAX_ACTIONS_PER_TURN) break;
+                    if (blocked) {
+                        rec.actions.add(call.name + " SKIPPED: an earlier action in this turn failed");
+                        continue;
+                    }
                     pausedMs += waitWhilePaused();
                     if (stop.stopped()) break;
                     if ("finish".equals(call.name)) {
@@ -179,14 +203,33 @@ final class FlashLoop {
                         finished = true;
                         break;
                     }
-                    String outcome = Actions.execute(a11y, obs, call);
-                    if (outcome.contains("FAILED")) {
+                    String outcome;
+                    Observation target = obs;
+                    ChatClient.ToolCall act = call;
+                    if (navigated && !hasIndex(call) && (call.args.has("x") || call.args.has("y"))) {
+                        // A point chosen on the old screen; after a screen change it lands somewhere else.
+                        outcome = call.name + " SKIPPED: x,y were chosen before an earlier action in this turn may have "
+                                + "changed the screen; observe again";
+                    } else {
+                        if (hasIndex(call)) {
+                            // The screen can move while the model thinks or after an earlier action:
+                            // act on the same element in a fresh read, found again by its label.
+                            target = Observation.capture(a11y, false);
+                            act = retarget(obs, target, call);
+                        }
+                        outcome = act == null
+                                ? call.name + " SKIPPED: the target is no longer on screen (the screen changed); observe again"
+                                : Actions.execute(a11y, target, act);
+                    }
+                    if (outcome.contains("FAILED") || outcome.contains("SKIPPED")) {
                         rec.failedAction = true;
+                        blocked = true;
                     } else {
                         okActions++;
-                        JSONObject replayable = Skill.action(obs, call, outcome);
+                        JSONObject replayable = Skill.action(target, act, outcome);
                         if (replayable != null) rec.replay.add(replayable);
                     }
+                    if (NAVIGATING.contains(call.name)) navigated = true;
                     rec.actions.add(outcome);
                 }
                 long tAct = System.currentTimeMillis();
@@ -226,6 +269,7 @@ final class FlashLoop {
                     break;
                 }
                 if (failStreak == FAIL_WARN && nudge == null) nudge = FAIL_WARNING;
+                if (rec.failedAction && nudge == null) nudge = RECOVER_NOTICE;
                 if (finalTurn) {
                     status = RunRecord.FAILED;
                     answer = "Reached the step limit (" + run.maxSteps + ") before the task finished.";
@@ -370,20 +414,32 @@ final class FlashLoop {
                 + "# 1. COGNITIVE PROTOCOL\n"
                 + "In every turn, think through observation, planning and action in that order. Before calling a tool, "
                 + "write one short paragraph of connected prose reflecting those three phases; it is kept in the execution history.\n"
-                + "- Turn 1 only: briefly decompose the objective into high-level visual milestones.\n\n"
+                + "- Turn 1 only: briefly decompose the objective into its parts and record them with `update_memory` "
+                + "(the first part under `next`).\n\n"
                 + "# 2. DYNAMIC ENVIRONMENT\n"
                 + "The device keeps changing while you think (1-5 s turn latency). If the screen progressed further than "
                 + "expected, adapt instead of treating it as an error. For loading spinners or transitions, use `wait`.\n\n"
-                + "# 3. HISTORY\n"
-                + "You see a short text log of your last steps (`Step N [T+mm:ss]`) and only the latest screenshot. "
-                + "Older steps are dropped, so write any value you will need later (codes, numbers, titles) into your reasoning.\n\n"
+                + "# 3. HISTORY AND TASK MEMORY\n"
+                + "You see a short text log of your last " + HISTORY_STEPS + " steps (`Step N [T+mm:ss]`) and only the latest "
+                + "screenshot; older steps are dropped. TASK MEMORY is kept for the whole task and is your source of truth "
+                + "about progress. Call `update_memory` (next to your action, in the same turn) whenever:\n"
+                + "- the current screen confirms a part of the objective is done (add it to `completed`);\n"
+                + "- you find something you will need later: where a feature is, a search term that works, a value to "
+                + "report (add it to `facts`);\n"
+                + "- a path proved useless: no results, feature not there, repeated no-change (add it to `dead_ends`, "
+                + "and do not try it again);\n"
+                + "- the plan changes (`next`).\n"
+                + "Each list you pass replaces the old one, so pass the full list. Before concluding that something is "
+                + "impossible or missing, check `facts` and `completed`: you may have found or done it already.\n\n"
                 + "# 4. STAGNATION\n"
                 + "If the same action on the same target twice produced no substantial change, stop retrying it and choose "
                 + "another path (a different gesture such as long_press, scroll, back, a different element, reopen the app).\n\n"
                 + "# 5. ACTION RULES\n"
                 + "1. Prefer the element index. The `--- Visible UI Elements ---` list numbers every element (`[3] Text: 'Wi-Fi' | Bounds: ...`). "
                 + "When the target is listed, pass `index`. Indices belong to the current observation only; never reuse an index from an earlier turn. "
-                + "Within one turn every index refers to the current list, even after an earlier action in the same turn.\n"
+                + "Within one turn every index refers to the current list; if an earlier action changes the screen, later "
+                + "actions whose target is gone (and any x,y action after a tap, swipe, back, home or open_app) are skipped, "
+                + "so only chain actions on the same screen (e.g. type_text then tap Send).\n"
                 + "2. Otherwise use normalized coordinates `x`,`y` on a 0-1000 scale (of screen width / height) and give `target_description`. "
                 + "Element bounds in the list use the same 0-1000 scale. The list can also contain elements of a page that is "
                 + "covered by the page on top; trust the screenshot for what is actually visible.\n"
@@ -391,18 +447,21 @@ final class FlashLoop {
                 + "`duration_ms` long enough for the action (e.g. 3000 ms to record a short voice message; the finger lifts at the end, which "
                 + "usually sends). A plain `tap` on them does nothing useful.\n"
                 + "4. To start an app, use `open_app` (package name or app label); it opens on the app's start screen.\n"
-                + "5. You may call up to " + MAX_ACTIONS_PER_TURN + " tools per turn; they run in order.\n"
+                + "5. You may call up to " + MAX_ACTIONS_PER_TURN + " action tools per turn (update_memory does not count); "
+                + "they run in order, and the rest of the turn stops at the first failed or skipped action.\n"
                 + "6. If `type_text` reports no editable field, it has put your text on the clipboard: long-press the input "
                 + "field and tap Paste (粘贴) instead of typing letter by letter on the keyboard. Never tap Paste at any other "
                 + "time: the clipboard may hold the user's private data.\n\n"
                 + "# 6. TERMINATION (`finish`)\n"
-                + "- Call `finish(status=\"completed\", answer=...)` only after the latest screen visibly shows the objective is achieved; "
-                + "put the requested information in `answer`, in the language of the objective.\n"
+                + "- Call `finish(status=\"completed\", answer=...)` once every part of the objective is done: parts listed "
+                + "in TASK MEMORY as completed count as done and need not be visible again (never go back to re-check them); "
+                + "the last part must be visible on the current screen. Put the requested information in `answer`, in the "
+                + "language of the objective.\n"
                 + "- Call `finish(status=\"failed\", answer=...)` with the exact blocking reason if the task is impossible.";
     }
 
     private String buildUserPrompt(Observation obs, int step, String notice) {
-        StringBuilder sb = new StringBuilder();
+        StringBuilder sb = new StringBuilder(run.memory.render()).append('\n');
         if (!history.isEmpty()) {
             sb.append("# EXECUTION HISTORY (last ").append(history.size()).append(" steps)\n");
             for (String h : history) sb.append(h).append('\n');
@@ -420,10 +479,39 @@ final class FlashLoop {
     }
 
     private void remember(RunRecord.Step s) {
+        String thought = s.replayed ? "(replayed from a saved skill)"
+                : s.failedAction ? "(this step failed; its reading of the screen may be wrong) " + clip(s.reasoning, 200)
+                : clip(s.reasoning, 300);
         history.addLast("Step " + s.index + " [" + clock(run.startedAt + s.offsetMs) + "] (" + s.app + "): "
-                + (s.replayed ? "(replayed from a saved skill)" : clip(s.reasoning, 300)) + " -> "
+                + thought + " -> "
                 + (s.actions.isEmpty() ? "(no tool call)" : TextUtils.join(" ; ", s.actions)));
         while (history.size() > HISTORY_STEPS) history.removeFirst();
+    }
+
+    private static boolean hasIndex(ChatClient.ToolCall call) {
+        return call.args.has("index") && !call.args.isNull("index");
+    }
+
+    /**
+     * The call aimed at the same element in a fresh read of the screen: same label, nearest to
+     * where it was. Null when it is gone; the call unchanged when its index was invalid anyway
+     * (the action then reports that).
+     */
+    private static ChatClient.ToolCall retarget(Observation old, Observation fresh, ChatClient.ToolCall call) {
+        int i = call.args.optInt("index", -1);
+        if (i < 0 || i >= old.elements.size()) return call;
+        Observation.Element e = old.elements.get(i);
+        int j = Skill.find(fresh, Skill.key(e.label), old.nx(e.cx()), old.ny(e.cy()));
+        if (j == Skill.NOT_FOUND) {
+            Log.i(AgentService.TAG, call.name + ": target " + i + " gone after the screen changed; skipped");
+            return null;
+        }
+        if (j != i) Log.i(AgentService.TAG, call.name + ": target moved " + i + " -> " + j);
+        try {
+            return new ChatClient.ToolCall(call.name, new JSONObject(call.args.toString()).put("index", j));
+        } catch (Exception ex) {
+            return call;
+        }
     }
 
     /**
@@ -458,6 +546,19 @@ final class FlashLoop {
                             .put("answer", prop("string", "Final answer or failure reason.")),
                     new String[]{"status", "answer"});
             if (finishOnly) return new JSONArray().put(finish);
+            JSONObject list = new JSONObject().put("type", "array").put("items", new JSONObject().put("type", "string"));
+            JSONObject memory = tool(MEMORY_TOOL, "Replace the task memory (kept for the whole task, shown at the top of "
+                            + "every turn). Call it next to your action whenever progress, facts, dead ends or the plan change. "
+                            + "Each list given replaces the old list; lists left out are kept.",
+                    new JSONObject()
+                            .put("completed", new JSONObject(list.toString()).put("description",
+                                    "Parts of the objective the screen has confirmed done, e.g. \"message sent to Alex\"."))
+                            .put("facts", new JSONObject(list.toString()).put("description",
+                                    "Things found that later steps need: where a feature is, a working search term, values to report."))
+                            .put("dead_ends", new JSONObject(list.toString()).put("description",
+                                    "Paths that proved useless, e.g. \"Settings search for 关机: no results\"."))
+                            .put("next", prop("string", "The next part to do.")),
+                    new String[0]);
             return new JSONArray()
                     .put(tool("tap", "Tap an element (by index) or a point (x,y on 0-1000 scale).",
                             new JSONObject().put("index", idx).put("x", x).put("y", y).put("target_description", desc),
@@ -486,6 +587,7 @@ final class FlashLoop {
                     .put(tool("wait", "Wait for the UI to settle.",
                             new JSONObject().put("ms", prop("integer", "Milliseconds, 200-10000.")),
                             new String[]{"ms"}))
+                    .put(memory)
                     .put(finish);
         } catch (Exception e) {
             throw new IllegalStateException(e);

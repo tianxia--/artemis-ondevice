@@ -63,7 +63,8 @@ final class McpTools {
         JSONArray agentTools = FlashLoop.tools(false);
         for (int i = 0; i < agentTools.length(); i++) {
             JSONObject f = agentTools.getJSONObject(i).getJSONObject("function");
-            if ("finish".equals(f.getString("name"))) continue;
+            String n = f.getString("name");
+            if ("finish".equals(n) || FlashLoop.MEMORY_TOOL.equals(n)) continue;
             JSONObject schema = new JSONObject(f.getJSONObject("parameters").toString());
             JSONObject index = schema.getJSONObject("properties").optJSONObject("index");
             if (index != null) index.put("description", "Index of the element in the latest observe result.");
@@ -182,7 +183,7 @@ final class McpTools {
     }
 
     private JSONObject act(String name, JSONObject args) throws Exception {
-        if (name.equals("finish") || !isActionTool(name)) throw new IllegalArgumentException("unknown tool: " + name);
+        if (name.equals("finish") || name.equals(FlashLoop.MEMORY_TOOL) || !isActionTool(name)) throw new IllegalArgumentException("unknown tool: " + name);
         if (RunState.isRunning()) throw new IllegalStateException("the phone's agent is running a task; stop_run first");
         AgentAccessibilityService s = service();
         if (FlashLoop.BLOCKED_APPS.contains(s.currentPackage())) {
@@ -235,6 +236,7 @@ final class McpTools {
                 .put("replayed_steps", r.replayedSteps()).put("duration_s", Math.round(r.durationMs() / 100.0) / 10.0)
                 .put("tokens_in", r.promptTokens()).put("tokens_out", r.completionTokens());
         if (!r.skillId.isEmpty()) o.put("skill", r.skillId);
+        if (!r.memory.isEmpty()) o.put("memory", r.memory.toJson());
         if (!steps) return o;
         JSONArray list = new JSONArray();
         for (RunRecord.Step s : r.steps) {

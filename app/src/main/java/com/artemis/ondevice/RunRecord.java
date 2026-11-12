@@ -86,6 +86,8 @@ final class RunRecord {
     volatile String answer = "";
     /** The saved skill this run replayed first, or "". */
     String skillId = "";
+    /** The model's working memory at the end of the run (see {@link TaskMemory}). */
+    TaskMemory memory = new TaskMemory();
     final List<Step> steps = new CopyOnWriteArrayList<>();
 
     static String newId() {
@@ -151,7 +153,8 @@ final class RunRecord {
         return new JSONObject().put("id", id).put("task", task).put("provider", providerId)
                 .put("model", model).put("max_steps", maxSteps).put("screenshot", screenshot)
                 .put("started_at", startedAt).put("ended_at", endedAt)
-                .put("status", status).put("answer", answer).put("skill", skillId).put("steps", st);
+                .put("status", status).put("answer", answer).put("skill", skillId)
+                .put("memory", memory.toJson()).put("steps", st);
     }
 
     static RunRecord fromJson(JSONObject o) {
@@ -167,6 +170,7 @@ final class RunRecord {
         r.status = o.optString("status", ERROR);
         r.answer = o.optString("answer");
         r.skillId = o.optString("skill");
+        r.memory = TaskMemory.fromJson(o.optJSONObject("memory"));
         JSONArray st = o.optJSONArray("steps");
         if (st != null) for (int i = 0; i < st.length(); i++) r.steps.add(Step.fromJson(st.optJSONObject(i)));
         // A run that was still "running" when the process died never finished.

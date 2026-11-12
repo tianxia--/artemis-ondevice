@@ -6,6 +6,15 @@ All notable changes to this project are listed here. The format follows
 
 ## [Unreleased]
 
+### Added
+- Task memory: the model keeps a running record of completed parts, facts found and dead ends with a new `update_memory` tool. It is shown at the top of every turn for the whole run, so progress is no longer lost once older steps leave the 6-step history, and finishing no longer needs earlier parts to be visible again.
+
+### Changed
+- Every index-targeted action re-reads the screen and finds its element again by label, so a list that moved while the model was thinking no longer gets tapped in the wrong place; an action whose target is gone is skipped.
+- Within one turn, the rest of the actions stop at the first failed or skipped action, and x,y actions after a tap, swipe, back, home or open_app are skipped (their point was chosen on the old screen).
+- After a failed or skipped action the next turn is told to re-orient against the task memory instead of redoing finished parts, and the failed step's reasoning is marked as unreliable in the history.
+- Anthropic requests use temperature 0.2, like OpenAI-compatible ones.
+
 ## [0.2.0] - 2026-11-09
 
 Skills (record and replay), an MCP server for desktop AI tools, and CI.

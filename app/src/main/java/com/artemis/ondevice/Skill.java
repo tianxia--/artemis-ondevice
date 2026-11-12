@@ -92,9 +92,13 @@ final class Skill {
     static int find(Observation obs, JSONObject a) {
         String k = a.optString("key", "");
         if (k.isEmpty()) return NO_ELEMENT;
+        return find(obs, k, a.optInt("nx"), a.optInt("ny"));
+    }
+
+    /** Index of the element with this key nearest (nx, ny) on the 0-1000 scale, or {@link #NOT_FOUND}. */
+    static int find(Observation obs, String k, int nx, int ny) {
         int best = NOT_FOUND;
         long bestDist = Long.MAX_VALUE;
-        int nx = a.optInt("nx"), ny = a.optInt("ny");
         for (int i = 0; i < obs.elements.size(); i++) {
             Observation.Element e = obs.elements.get(i);
             if (!k.equals(key(e.label))) continue;

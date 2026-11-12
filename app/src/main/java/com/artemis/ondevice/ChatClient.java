@@ -164,8 +164,9 @@ final class ChatClient {
                     .put("data", Base64.encodeToString(jpeg, Base64.NO_WRAP))));
         }
         content.put(new JSONObject().put("type", "text").put("text", userText));
+        // Same low temperature as the OpenAI path: the same task should take the same path.
         JSONObject body = new JSONObject().put("model", model).put("system", system)
-                .put("max_tokens", maxTokens)
+                .put("max_tokens", maxTokens).put("temperature", 0.2)
                 .put("messages", new JSONArray().put(new JSONObject().put("role", "user").put("content", content)));
         if (tools != null) {
             JSONArray out = new JSONArray();
