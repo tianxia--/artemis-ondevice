@@ -49,6 +49,9 @@ public class VoiceTestReceiver extends BroadcastReceiver {
                 }
                 setResultData(AgentService.start(ctx, task.trim()));
                 break;
+            case "cachetest":
+                CacheProbe.runAsync(ctx);
+                break;
             case "hangup":
                 if (call == null) {
                     fail("no call in progress");
@@ -57,7 +60,7 @@ public class VoiceTestReceiver extends BroadcastReceiver {
                 call.hangUp();
                 break;
             default:
-                fail("cmd must be call, say, hangup or task");
+                fail("cmd must be call, say, hangup, task or cachetest");
                 return;
         }
         setResultCode(1);

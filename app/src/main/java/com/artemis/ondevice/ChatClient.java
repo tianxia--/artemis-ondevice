@@ -110,6 +110,9 @@ final class ChatClient {
      */
     private long connectMs, sendMs, waitMs, readMs;
     private int sentBytes, readBytes, attempts;
+    /** The last call's cache hits as reported ("n/a" when not reported) and its wait, for CacheProbe. */
+    String lastCached = "n/a";
+    long lastWaitMs;
 
     void cancel() {
         cancelled = true;
@@ -291,20 +294,26 @@ final class ChatClient {
     /** One line per model call: the time split, sizes and token details (no content, no address). */
     private void logTiming(String model, JSONObject resp, Result r, boolean anthropic) {
         JSONObject usage = resp.optJSONObject("usage");
-        int reasoning = 0, cached = 0;
+        int reasoning = 0;
+        // "n/a" when the service does not report cache hits at all: that is not the same as 0 hits
+        // (vLLM and SGLang, for one, leave the field out unless told to report it).
+        String cached = "n/a";
         if (usage != null) {
             JSONObject out = usage.optJSONObject("completion_tokens_details");
             if (out != null) reasoning = out.optInt("reasoning_tokens");
             JSONObject in = usage.optJSONObject("prompt_tokens_details");
-            if (in != null) cached = in.optInt("cached_tokens");
-            if (anthropic) cached = usage.optInt("cache_read_input_tokens");
+            if (in != null && in.has("cached_tokens")) cached = String.valueOf(in.optInt("cached_tokens"));
+            else if (usage.has("prompt_cache_hit_tokens")) cached = String.valueOf(usage.optInt("prompt_cache_hit_tokens"));
+            if (anthropic && usage.has("cache_read_input_tokens")) cached = String.valueOf(usage.optInt("cache_read_input_tokens"));
         }
+        lastCached = cached;
+        lastWaitMs = waitMs;
         int thinkingChars = 0;
         JSONArray choices = resp.optJSONArray("choices");
         JSONObject msg = choices == null || choices.length() == 0 ? null : choices.optJSONObject(0).optJSONObject("message");
         if (msg != null) thinkingChars = msg.optString("reasoning_content", "").length() + msg.optString("reasoning", "").length();
         AppLog.i(AppLog.MODEL, String.format(java.util.Locale.ROOT,
-                "%s %s: total %d ms = connect %d + send %d (%d KB) + wait %d + read %d (%d KB)%s | tokens in %d (cached %d), "
+                "%s %s: total %d ms = connect %d + send %d (%d KB) + wait %d + read %d (%d KB)%s | tokens in %d (cached %s), "
                         + "out %d (reasoning %s)%s",
                 purpose, model, r.latencyMs, connectMs, sendMs, sentBytes / 1024, waitMs, readMs, readBytes / 1024,
                 attempts > 1 ? ", attempts " + attempts : "", r.promptTokens, cached, r.completionTokens,

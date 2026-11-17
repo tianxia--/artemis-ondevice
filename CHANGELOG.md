@@ -18,7 +18,7 @@ All notable changes to this project are listed here. The format follows
 - `scripts/regression.py`: one-command regression run on a connected phone or emulator (typed tasks: direct answers, a settings lookup, a named app, a money refusal; voice calls: chat, time, a task read back, a merged addition, stop, goodbye), with a pass/fail table of time, steps and tokens.
 - `scripts/realtime-probe.py` tries a realtime voice endpoint from a Mac; `VoiceTestReceiver` drives voice calls over adb for testing without a microphone.
 
-- Every model call logs where its time went (connect, send, waiting for the service, read), the sizes, and cached and reasoning tokens when the service reports them.
+- Every model call logs where its time went (connect, send, waiting for the service, read), the sizes, and cached and reasoning tokens when the service reports them ("n/a" when it does not, which is not the same as 0). `VoiceTestReceiver cachetest` measures whether the task model's service reuses a repeated prompt prefix.
 - Logs for troubleshooting: every flow writes to a daily file kept 7 days (keys, addresses, e-mail and phone numbers masked; never what you said, task text or screen content), and Settings > Data > Export logs shares a zip with the logs, app and device info, settings and a summary of recent tasks. See docs/logging.md.
 
 - Voice wake-up checks itself every 30 s: when Android silences the microphone (another app records, or the service was restarted from the background) the notification says so instead of failing quietly, and the log records a heartbeat every 10 minutes. It also restarts with the accessibility service after the app was killed.
