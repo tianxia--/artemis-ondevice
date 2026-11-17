@@ -108,7 +108,11 @@ final class VoiceCall implements RealtimeSocket.Listener {
     private final LinkedBlockingQueue<String> outbox = new LinkedBlockingQueue<>();
     private Thread sender;
 
-    private RealtimeSocket socket;
+    private volatile RealtimeSocket socket;
+    /** What opening a connection needs, kept for reconnects when the session setup stalls. */
+    private String connectUrl, sessionJson;
+    private Map<String, String> connectHeaders;
+    private static final int MAX_RECONNECTS = 2;
     private AudioManager audio;
     private int previousMode;
     private AudioRecord mic;
@@ -127,6 +131,8 @@ final class VoiceCall implements RealtimeSocket.Listener {
     private volatile boolean heardSpeech;
     private volatile String taskBefore; // RunState.lastFinishedId() when our task started; null = none running
     private UserPrompt.Pending announced;
+    /** Loudest RMS of the sentence that just ended, for the log (to calibrate a floor for distant voices). */
+    private double turnPeak;
     /** A task the model asked for, not started yet (see TASK_GRACE_MS); with the time it was asked. */
     private volatile String pendingTask;
     /** Between leaving pendingTask and taskBefore being set: busy too, or the idle hang-up killed the start. */
@@ -139,6 +145,9 @@ final class VoiceCall implements RealtimeSocket.Listener {
     private float[] voiceprint;
     private final java.util.ArrayList<float[]> utterance = new java.util.ArrayList<>();
     private int utteranceSamples;
+    /** The last voiceprint check of this sentence: how much audio it had and what it decided. */
+    private int checkedSamples;
+    private boolean checkedUser = true;
     /** The current utterance already cut off the reply. */
     private boolean cutIn;
     /** The user stopped the task by voice and was already told; its "stopped" result needs no second word. */
@@ -159,7 +168,8 @@ final class VoiceCall implements RealtimeSocket.Listener {
     /** The user talked over an answer that had not started yet: cancel it as soon as it starts. */
     private volatile boolean cancelOnStart;
     private final java.util.concurrent.CountDownLatch sessionReady = new java.util.concurrent.CountDownLatch(1);
-    private static final long SESSION_WAIT_MS = 10_000;
+    /** No session confirmation by then: reconnect (seen: a stalled setup confirmed after 80 s, on 4G). */
+    private static final long SESSION_WAIT_MS = 6_000;
     /** An answer was asked for while another was still in progress; sent once that one is done. */
     private boolean responseWanted;
     /** Last sign of life of the answer in progress, so a lost one cannot block all later answers. */
@@ -268,32 +278,46 @@ final class VoiceCall implements RealtimeSocket.Listener {
     }
 
     private void connect(String key) throws Unavailable {
-        String url = provider.realtimeUrl + (provider.realtimeUrl.contains("?") ? "&" : "?") + "model=" + model;
-        Map<String, String> headers = new HashMap<>();
-        headers.put("Authorization", "Bearer " + key);
-        headers.put("User-Agent", "artemis-ondevice");
+        connectUrl = provider.realtimeUrl + (provider.realtimeUrl.contains("?") ? "&" : "?") + "model=" + model;
+        connectHeaders = new HashMap<>();
+        connectHeaders.put("Authorization", "Bearer " + key);
+        connectHeaders.put("User-Agent", "artemis-ondevice");
         try {
-            socket = RealtimeSocket.connect(url, headers, CONNECT_TIMEOUT_MS);
-        } catch (IOException e) {
-            // The class says what went wrong (UnknownHost = no network, Handshake = refused, …).
-            throw new Unavailable(e.getClass().getSimpleName() + ": " + e.getMessage(), e);
-        }
-        socket.start(this);
-        try {
-            // Sent before the sender thread starts: everything else waits until the server confirms it.
-            socket.send(new JSONObject().put("type", "session.update").put("session", new JSONObject()
+            sessionJson = new JSONObject().put("type", "session.update").put("session", new JSONObject()
                     .put("modalities", new JSONArray().put("audio").put("text"))
                     .put("enable_search", AppSettings.webSearch(ctx))
                     .put("instructions", INSTRUCTIONS)
                     .put("output_audio_format", "pcm")
                     .put("turn_detection", JSONObject.NULL) // turns are decided on the phone
-                    .put("tools", toolDefinitions())).toString());
+                    .put("tools", toolDefinitions())).toString();
+            open();
+        } catch (IOException e) {
+            // The class says what went wrong (UnknownHost = no network, Handshake = refused, …).
+            throw new Unavailable(e.getClass().getSimpleName() + ": " + e.getMessage(), e);
         } catch (Exception e) {
-            socket.close();
             throw new Unavailable(e.getMessage(), e);
         }
         sender = new Thread(this::sendLoop, "artemis-voice-send");
         sender.start();
+    }
+
+    /**
+     * Opens a connection and sends the session setup on it; it becomes the call's socket. Events
+     * and the close of a socket that was replaced are ignored.
+     */
+    private void open() throws IOException {
+        final RealtimeSocket s = RealtimeSocket.connect(connectUrl, connectHeaders, CONNECT_TIMEOUT_MS);
+        socket = s;
+        s.start(new RealtimeSocket.Listener() {
+            @Override public void onMessage(String text) {
+                if (socket == s) VoiceCall.this.onMessage(text);
+            }
+            @Override public void onClosed(Exception error) {
+                if (socket == s) VoiceCall.this.onClosed(error);
+            }
+        });
+        // Sent before anything else: the sender waits until the server confirms it.
+        s.send(sessionJson);
     }
 
     private static JSONArray toolDefinitions() throws Exception {
@@ -326,8 +350,22 @@ final class VoiceCall implements RealtimeSocket.Listener {
      */
     private void sendLoop() {
         try {
-            if (!sessionReady.await(SESSION_WAIT_MS, java.util.concurrent.TimeUnit.MILLISECONDS)) {
-                AppLog.w(AppLog.CALL, "session setup not confirmed after " + SESSION_WAIT_MS + " ms; sending anyway");
+            for (int attempt = 1; !sessionReady.await(SESSION_WAIT_MS, java.util.concurrent.TimeUnit.MILLISECONDS); attempt++) {
+                if (ended) return;
+                if (attempt > MAX_RECONNECTS) {
+                    AppLog.w(AppLog.CALL, "session setup still not confirmed after " + MAX_RECONNECTS + " reconnects; sending anyway");
+                    break;
+                }
+                AppLog.w(AppLog.CALL, "session setup not confirmed after " + SESSION_WAIT_MS + " ms; reconnecting (" + attempt + ")");
+                RealtimeSocket old = socket;
+                long t0 = System.currentTimeMillis();
+                try {
+                    open();
+                    AppLog.i(AppLog.CALL, "reconnected in " + (System.currentTimeMillis() - t0) + " ms");
+                } catch (IOException e) {
+                    AppLog.w(AppLog.CALL, "reconnect failed: " + e.getClass().getSimpleName());
+                }
+                if (old != socket) old.close(); // replaced: its close is ignored
             }
             while (!ended) socket.send(outbox.take());
         } catch (InterruptedException e) {
@@ -420,6 +458,7 @@ final class VoiceCall implements RealtimeSocket.Listener {
                     speaking = false;
                     waitQuiet = true;
                     lastPeak = peak;
+                    turnPeak = peak;
                     endTurn(now);
                 } else if (voice) {
                     heardSpeech = true;
@@ -438,6 +477,8 @@ final class VoiceCall implements RealtimeSocket.Listener {
                         engine.startUtterance();
                         utterance.clear();
                         utteranceSamples = 0;
+                        checkedSamples = 0;
+                        checkedUser = true;
                         for (float[] p : preRoll) {
                             engine.feedUtterance(p);
                             keep(p);
@@ -457,6 +498,7 @@ final class VoiceCall implements RealtimeSocket.Listener {
                 } else if (speaking) {
                     speaking = false;
                     lastPeak = peak;
+                    turnPeak = peak;
                     engine.feedUtterance(samples);
                     endTurn(now);
                 } else {
@@ -533,12 +575,22 @@ final class VoiceCall implements RealtimeSocket.Listener {
         String said = engine.utteranceText();
         youStoppedAt = now;
         AppLog.i(AppLog.CALL, "you stopped, " + said.length() + " chars recognized in "
-                + (System.currentTimeMillis() - now) + " ms");
+                + (System.currentTimeMillis() - now) + " ms, loudest " + Math.round(turnPeak));
         if (said.isEmpty()) {
             show(VoiceCallPanel.State.LISTENING);
             return;
         }
+        // One recognized character is mostly noise or a word caught from someone nearby ("嗯", "啊").
+        // Kept only where one word means something: stopping, or answering the card on screen.
+        String bare = said.replaceAll("[\\p{P}\\s]+", "");
+        if (bare.length() < 2 && UserPrompt.pending() == null && !bare.equals("停")) {
+            AppLog.i(AppLog.CALL, "ignored a 1-character turn (noise or someone nearby)");
+            show(VoiceCallPanel.State.LISTENING);
+            return;
+        }
         if (!isUser(true)) {
+            // Say so instead of ignoring the user silently when the voiceprint got them wrong.
+            if (panel != null) panel.userSaid(ctx.getString(R.string.voice_call_not_you));
             show(VoiceCallPanel.State.LISTENING);
             return;
         }
@@ -558,6 +610,9 @@ final class VoiceCall implements RealtimeSocket.Listener {
      */
     private boolean isUser(boolean final_) {
         if (voiceprint == null || utteranceSamples < Voiceprint.MIN_SECONDS * IN_RATE) return true;
+        // While someone else talks, do not re-check every 100 ms chunk (~100 ms each): only after
+        // another second of speech, or at the end of the sentence.
+        if (!final_ && checkedSamples > 0 && utteranceSamples < checkedSamples + IN_RATE) return checkedUser;
         float[] all = new float[utteranceSamples];
         int at = 0;
         for (float[] c : utterance) {
@@ -567,7 +622,10 @@ final class VoiceCall implements RealtimeSocket.Listener {
         long t0 = System.currentTimeMillis();
         float score = engine.voiceScore(voiceprint, all);
         boolean user = Float.isNaN(score) || score >= Voiceprint.THRESHOLD;
-        if (final_ || !user) {
+        boolean changed = checkedSamples == 0 || user != checkedUser;
+        checkedSamples = utteranceSamples;
+        checkedUser = user;
+        if (final_ || changed) {
             AppLog.i(AppLog.CALL, String.format(Locale.ROOT, "voiceprint %.2f (%s) in %d ms",
                     score, user ? "you" : "someone else, ignored", System.currentTimeMillis() - t0));
         }

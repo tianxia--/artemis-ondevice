@@ -57,6 +57,7 @@ public class MainActivity extends AppCompatActivity implements RunState.Listener
     @Override
     protected void onCreate(Bundle state) {
         super.onCreate(state);
+        AppLocale.remember(this);
         setContentView(R.layout.activity_main);
 
         com.google.android.material.appbar.MaterialToolbar toolbar = findViewById(R.id.toolbar);

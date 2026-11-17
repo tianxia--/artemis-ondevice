@@ -25,8 +25,11 @@ final class Voiceprint {
 
     static final String MODEL = "voice/spk/model.onnx";
     private static final String FILE = "voiceprint.json";
-    /** Same speaker scores well above this, others well below (CAM++, cosine of embeddings). */
-    static final float THRESHOLD = 0.45f;
+    /**
+     * Below this a sentence counts as someone else's (CAM++, cosine of embeddings). 0.45 rejected
+     * the user's own 2-3 s sentences on a phone (0.40); other speakers mostly score below 0.25.
+     */
+    static final float THRESHOLD = 0.30f;
     /** Shorter speech gives an unreliable score: it is not checked. */
     static final float MIN_SECONDS = 1.0f;
 

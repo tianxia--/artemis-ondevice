@@ -103,8 +103,16 @@ final class VoiceprintDialog {
             if (extractor == null) extractor = Voiceprint.extractor(activity.getAssets());
             int rate = SpeechEngine.SAMPLE_RATE;
             short[] pcm = new short[rate * SECONDS];
-            AudioRecord mic = new AudioRecord(MediaRecorder.AudioSource.VOICE_RECOGNITION, rate,
+            // The same path as a voice call (communication source, echo canceller, noise suppressor):
+            // a voiceprint recorded through another path scored the same voice lower in calls.
+            AudioRecord mic = new AudioRecord(MediaRecorder.AudioSource.VOICE_COMMUNICATION, rate,
                     AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, rate);
+            android.media.audiofx.AcousticEchoCanceler aec = android.media.audiofx.AcousticEchoCanceler.isAvailable()
+                    ? android.media.audiofx.AcousticEchoCanceler.create(mic.getAudioSessionId()) : null;
+            android.media.audiofx.NoiseSuppressor ns = android.media.audiofx.NoiseSuppressor.isAvailable()
+                    ? android.media.audiofx.NoiseSuppressor.create(mic.getAudioSessionId()) : null;
+            if (aec != null) aec.setEnabled(true);
+            if (ns != null) ns.setEnabled(true);
             try {
                 mic.startRecording();
                 for (int at = 0; at < pcm.length && !closed; ) {
@@ -113,6 +121,8 @@ final class VoiceprintDialog {
                     at += n;
                 }
             } finally {
+                if (aec != null) aec.release();
+                if (ns != null) ns.release();
                 mic.release();
             }
             if (closed) return;

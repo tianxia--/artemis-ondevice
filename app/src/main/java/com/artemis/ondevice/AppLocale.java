@@ -25,6 +25,19 @@ final class AppLocale {
         AppCompatDelegate.setApplicationLocales(androidx.core.os.LocaleListCompat.forLanguageTags(tags));
     }
 
+    /**
+     * Called when the home screen opens (AppCompat has restored its choice by then): copies a
+     * language picked by an older version, which only AppCompat stored, so services find it after
+     * a restart too.
+     */
+    static void remember(Context ctx) {
+        android.content.SharedPreferences p = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        if (p.contains(KEY)) return;
+        String tags = AppCompatDelegate.getApplicationLocales().toLanguageTags();
+        p.edit().putString(KEY, tags == null ? "" : tags).apply();
+        AppLog.i(AppLog.SETTINGS, "language carried over: " + (tags == null || tags.isEmpty() ? "system" : tags));
+    }
+
     /** The context in the picked language; the context itself when following the system. */
     static Context wrap(Context base) {
         String tags = base.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY, null);
