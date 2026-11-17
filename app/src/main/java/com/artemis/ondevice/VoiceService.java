@@ -49,6 +49,12 @@ public class VoiceService extends Service implements Runnable {
     private static final String CALL_FAILED = "实时语音连不上，先用离线语音。";
 
     private volatile boolean running;
+    // Second wake path (recognizerWake): a short burst of speech is recognized and compared by sound.
+    private final java.util.ArrayDeque<float[]> wakePreRoll = new java.util.ArrayDeque<>();
+    private boolean wakeSpeech, wakeGaveUp;
+    private int wakeChunks;
+    private static final int WAKE_MAX_CHUNKS = 40; // 4 s: the wake word is short; longer talk is a conversation
+
     // Self-check while waiting for the wake word (see selfCheck): loudest sample since the last check,
     // reads since then, whether the microphone looked unusable, wake-ups since the last heartbeat.
     private int peak, reads, wakes;
@@ -148,13 +154,20 @@ public class VoiceService extends Service implements Runnable {
                 applyWakeWord(engine);
                 boolean requested = callRequested;
                 if (!requested) {
-                    boolean heard = engine.wakeWord(read());
+                    float[] samples = read();
+                    boolean heard = engine.wakeWord(samples);
+                    if (heard) {
+                        AppLog.i(AppLog.VOICE, "wake word heard by the spotter");
+                    } else if (engine.isReady() && recognizerWake(engine, samples)) {
+                        AppLog.i(AppLog.VOICE, "wake word heard by the recognizer (the spotter missed it)");
+                        heard = true;
+                    }
                     if (++reads >= CHECK_READS) selfCheck(engine);
                     if (!heard) continue;
                 }
                 callRequested = false;
                 wakes++;
-                AppLog.i(AppLog.VOICE, requested ? "call requested over adb" : "wake word heard");
+                if (requested) AppLog.i(AppLog.VOICE, "call requested over adb");
                 if (!call(engine)) converse(engine);
                 restartMic();
                 engine.resetWakeWord();
@@ -342,6 +355,41 @@ public class VoiceService extends Service implements Runnable {
             if (a > peak) peak = a;
         }
         return f;
+    }
+
+    /**
+     * The small wake word spotter misses the wake word often; the speech recognizer (already loaded)
+     * is far more accurate. While someone speaks, up to 4 s are recognized and compared with the
+     * wake word by sound ({@link WakeWord#soundsLike}). What was said is not logged.
+     */
+    private boolean recognizerWake(SpeechEngine engine, float[] samples) {
+        boolean speech = engine.speaking(samples);
+        String phrase = engine.wakeWord();
+        if (speech) {
+            if (!wakeSpeech) {
+                wakeSpeech = true;
+                wakeGaveUp = false;
+                wakeChunks = 0;
+                engine.startUtterance();
+                for (float[] p : wakePreRoll) engine.feedUtterance(p);
+                wakePreRoll.clear();
+            }
+            if (wakeGaveUp) return false;
+            engine.feedUtterance(samples);
+            if (++wakeChunks >= WAKE_MAX_CHUNKS) wakeGaveUp = true;
+            if (wakeChunks % 5 == 0 && WakeWord.soundsLike(this, engine.utteranceText(), phrase)) {
+                wakeSpeech = false;
+                return true;
+            }
+            return false;
+        }
+        wakePreRoll.add(samples);
+        if (wakePreRoll.size() > 3) wakePreRoll.poll();
+        if (!wakeSpeech) return false;
+        wakeSpeech = false;
+        if (wakeGaveUp) return false;
+        engine.feedUtterance(new float[SpeechEngine.SAMPLE_RATE * 3 / 10]); // flush the last syllable
+        return WakeWord.soundsLike(this, engine.utteranceText(), phrase);
     }
 
     /**

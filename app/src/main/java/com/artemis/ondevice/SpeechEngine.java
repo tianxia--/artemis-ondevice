@@ -42,6 +42,8 @@ final class SpeechEngine {
     private volatile Exception restError;
     /** Speaker embeddings for the voiceprint; null when the model is not packaged. */
     private com.k2fsa.sherpa.onnx.SpeakerEmbeddingExtractor speaker;
+    /** Speech detector for the recognizer's wake check (VoiceService); null when not packaged. */
+    private com.k2fsa.sherpa.onnx.Vad vad;
     private OnlineStream kwsStream;
     /** The wake word in use and its keyword line ("" = the default from keywords.txt). */
     private String wakeWord = WakeWord.DEFAULT, wakeLine = "";
@@ -64,6 +66,7 @@ final class SpeechEngine {
             asrStream = asr.createStream("");
             tts = new OfflineTts(am, ttsConfig());
             speaker = Voiceprint.available(am) ? Voiceprint.extractor(am) : null;
+            vad = wakeVad(am);
             prepare(phrases);
         } catch (Exception | Error e) {
             restError = e instanceof Exception ? (Exception) e : new IllegalStateException(e);
@@ -132,6 +135,34 @@ final class SpeechEngine {
     boolean wakeConfigured() { return !wakeLine.isEmpty(); }
 
     String wakeWord() { return wakeWord; }
+
+    /** Whether someone is speaking in these samples (after loadRest; false without a VAD model). */
+    boolean speaking(float[] samples) {
+        if (vad == null) return false;
+        vad.acceptWaveform(samples);
+        while (!vad.empty()) vad.pop();
+        return vad.isSpeechDetected();
+    }
+
+    private static com.k2fsa.sherpa.onnx.Vad wakeVad(AssetManager am) {
+        try {
+            am.open(DIR + "vad/silero_vad.onnx").close();
+        } catch (IOException e) {
+            return null;
+        }
+        com.k2fsa.sherpa.onnx.SileroVadModelConfig silero = new com.k2fsa.sherpa.onnx.SileroVadModelConfig();
+        silero.setModel(DIR + "vad/silero_vad.onnx");
+        silero.setThreshold(0.5f);
+        silero.setMinSilenceDuration(0.3f);
+        silero.setMinSpeechDuration(0.2f);
+        silero.setWindowSize(512);
+        silero.setMaxSpeechDuration(20f);
+        com.k2fsa.sherpa.onnx.VadModelConfig config = new com.k2fsa.sherpa.onnx.VadModelConfig();
+        config.setSileroVadModelConfig(silero);
+        config.setSampleRate(SAMPLE_RATE);
+        config.setNumThreads(1);
+        return new com.k2fsa.sherpa.onnx.Vad(am, config);
+    }
 
     // ------------------------------------------------------------------ voiceprint
 
@@ -234,6 +265,7 @@ final class SpeechEngine {
         if (asrStream != null) asrStream.release();
         if (asr != null) asr.release();
         if (speaker != null) speaker.release();
+        if (vad != null) vad.release();
         if (tts != null) tts.release();
     }
 

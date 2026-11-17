@@ -102,6 +102,55 @@ final class WakeWord {
         return false;
     }
 
+    private static final String MARKED = "āáǎàēéěèīíǐìōóǒòūúǔùǖǘǚǜü", PLAIN = "aaaaeeeeiiiioooouuuuvvvvv";
+
+    /** The hanzi of the text as toneless pinyin syllables ("你好啊特" -> ni hao a te); other characters skipped. */
+    static synchronized java.util.List<String> toneless(Context ctx, String text) {
+        try {
+            load(ctx.getAssets());
+        } catch (IOException e) {
+            return java.util.Collections.emptyList();
+        }
+        java.util.List<String> out = new java.util.ArrayList<>();
+        for (int i = 0; i < text.length(); i++) {
+            String py = pinyin.get(String.valueOf(text.charAt(i)));
+            if (py == null) continue;
+            StringBuilder sb = new StringBuilder(py.length());
+            for (int k = 0; k < py.length(); k++) {
+                int at = MARKED.indexOf(py.charAt(k));
+                sb.append(at >= 0 ? PLAIN.charAt(at) : py.charAt(k));
+            }
+            out.add(sb.toString());
+        }
+        return out;
+    }
+
+    /**
+     * Whether recognized speech contains the wake word, by sound: same toneless syllables, one may
+     * differ for 4+ characters (the recognizer writes 你好啊特 or 你好阿德 for 你好阿特).
+     */
+    static boolean soundsLike(Context ctx, String heard, String phrase) {
+        java.util.List<String> h = toneless(ctx, heard), w = toneless(ctx, phrase);
+        if (w.isEmpty() || h.size() < w.size()) return false;
+        int allowed = w.size() >= 4 ? 1 : 0;
+        for (int start = 0; start + w.size() <= h.size(); start++) {
+            int diff = 0;
+            for (int i = 0; i < w.size() && diff <= allowed; i++) {
+                String a = h.get(start + i), b = w.get(i);
+                if (a.equals(b)) continue;
+                // A different syllable only counts as a slip if it rhymes (啊/阿/呀, 特/德), not 小 for 阿.
+                diff += finalOf(a).equals(finalOf(b)) ? 1 : allowed + 1;
+            }
+            if (diff <= allowed) return true;
+        }
+        return false;
+    }
+
+    private static String finalOf(String syllable) {
+        String[] parts = split(syllable);
+        return parts[parts.length - 1];
+    }
+
     /** "hǎo" -> ["h", "ǎo"]; a syllable without an initial ("ā") stays whole. */
     static String[] split(String syllable) {
         for (String initial : INITIALS) {
