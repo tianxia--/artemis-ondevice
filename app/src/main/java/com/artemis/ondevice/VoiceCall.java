@@ -129,6 +129,8 @@ final class VoiceCall implements RealtimeSocket.Listener {
     private UserPrompt.Pending announced;
     /** A task the model asked for, not started yet (see TASK_GRACE_MS); with the time it was asked. */
     private volatile String pendingTask;
+    /** Between leaving pendingTask and taskBefore being set: busy too, or the idle hang-up killed the start. */
+    private volatile boolean taskStarting;
     private volatile long pendingAt, taskStartedAt;
     /** The user said goodbye: hang up once the goodbye has been spoken. */
     private volatile boolean hangUpAfterReply;
@@ -152,6 +154,12 @@ final class VoiceCall implements RealtimeSocket.Listener {
     private volatile long youStoppedAt;
     private volatile boolean firstAudio;
     private volatile boolean responseActive;
+    /** response.created seen for the answer in progress (an answer only requested cannot be cancelled yet). */
+    private volatile boolean responseStarted;
+    /** The user talked over an answer that had not started yet: cancel it as soon as it starts. */
+    private volatile boolean cancelOnStart;
+    private final java.util.concurrent.CountDownLatch sessionReady = new java.util.concurrent.CountDownLatch(1);
+    private static final long SESSION_WAIT_MS = 10_000;
     /** An answer was asked for while another was still in progress; sent once that one is done. */
     private boolean responseWanted;
     /** Last sign of life of the answer in progress, so a lost one cannot block all later answers. */
@@ -271,20 +279,21 @@ final class VoiceCall implements RealtimeSocket.Listener {
             throw new Unavailable(e.getClass().getSimpleName() + ": " + e.getMessage(), e);
         }
         socket.start(this);
-        sender = new Thread(this::sendLoop, "artemis-voice-send");
-        sender.start();
         try {
-            send(new JSONObject().put("type", "session.update").put("session", new JSONObject()
+            // Sent before the sender thread starts: everything else waits until the server confirms it.
+            socket.send(new JSONObject().put("type", "session.update").put("session", new JSONObject()
                     .put("modalities", new JSONArray().put("audio").put("text"))
                     .put("enable_search", AppSettings.webSearch(ctx))
                     .put("instructions", INSTRUCTIONS)
                     .put("output_audio_format", "pcm")
                     .put("turn_detection", JSONObject.NULL) // turns are decided on the phone
-                    .put("tools", toolDefinitions())));
+                    .put("tools", toolDefinitions())).toString());
         } catch (Exception e) {
             socket.close();
             throw new Unavailable(e.getMessage(), e);
         }
+        sender = new Thread(this::sendLoop, "artemis-voice-send");
+        sender.start();
     }
 
     private static JSONArray toolDefinitions() throws Exception {
@@ -310,8 +319,16 @@ final class VoiceCall implements RealtimeSocket.Listener {
         outbox.add(event.toString());
     }
 
+    /**
+     * Sends queued events in order, but only once the session is set up: a sentence that arrives
+     * first was answered without the instructions and tools (seen on slow networks). Gives up
+     * waiting after SESSION_WAIT_MS and sends anyway.
+     */
     private void sendLoop() {
         try {
+            if (!sessionReady.await(SESSION_WAIT_MS, java.util.concurrent.TimeUnit.MILLISECONDS)) {
+                AppLog.w(AppLog.CALL, "session setup not confirmed after " + SESSION_WAIT_MS + " ms; sending anyway");
+            }
             while (!ended) socket.send(outbox.take());
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
@@ -474,13 +491,17 @@ final class VoiceCall implements RealtimeSocket.Listener {
             speakingNow = speaking;
             String pending = pendingTask;
             if (pending != null && !speaking && now - pendingAt > TASK_GRACE_MS) {
+                taskStarting = true;
                 pendingTask = null;
+                lastActivity = now;
                 tools.execute(() -> {
                     try {
                         String refused = startTask(pending);
                         if (refused != null) notice("任务没有开始：" + refused + "。告诉用户。", true);
                     } catch (InterruptedException e) {
                         Thread.currentThread().interrupt();
+                    } finally {
+                        taskStarting = false;
                     }
                 });
             }
@@ -489,8 +510,8 @@ final class VoiceCall implements RealtimeSocket.Listener {
                 break;
             }
             // Waiting for an answer is not idle (a web search can take a while); the watchdog below bounds it.
-            boolean busy = taskBefore != null || pendingTask != null || !queued.isEmpty() || UserPrompt.pending() != null
-                    || responseActive;
+            boolean busy = taskBefore != null || pendingTask != null || taskStarting || !queued.isEmpty()
+                    || UserPrompt.pending() != null || responseActive;
             if (!busy && now - Math.max(lastActivity, playingUntil) > IDLE_MS) break;
             if (talkMs > MAX_TALK_MS && now > playingUntil) break;
         }
@@ -684,7 +705,10 @@ final class VoiceCall implements RealtimeSocket.Listener {
             speaker.play();
         }
         playingUntil = 0;
-        if (responseActive) send(cancel());
+        if (responseActive) {
+            if (responseStarted) send(cancel());
+            else cancelOnStart = true; // requested but not started: there is nothing to cancel yet
+        }
     }
 
     private static JSONObject cancel() {
@@ -771,12 +795,23 @@ final class VoiceCall implements RealtimeSocket.Listener {
             AppLog.i(AppLog.CALL, "event " + type + extra);
         }
         switch (type) {
+            case "session.updated":
+                sessionReady.countDown();
+                break;
             case "response.created":
-                dropAudio = false;
-                firstAudio = true;
                 synchronized (responseLock) {
                     responseActive = true;
                 }
+                responseStarted = true;
+                if (cancelOnStart) {
+                    // The user already moved on: this answer is to an older sentence.
+                    cancelOnStart = false;
+                    dropAudio = true;
+                    send(cancel());
+                    break;
+                }
+                dropAudio = false;
+                firstAudio = true;
                 AppLog.i(AppLog.CALL, "response created " + since(youStoppedAt) + " after you stopped");
                 synchronized (reply) {
                     reply.setLength(0);
@@ -808,6 +843,7 @@ final class VoiceCall implements RealtimeSocket.Listener {
                 tools.execute(() -> callTool(name, callId, args));
                 break;
             case "response.done":
+                responseStarted = false;
                 responseEnded();
                 JSONObject done = e.optJSONObject("response");
                 AppLog.i(AppLog.CALL, "response " + (done == null ? "?" : done.optString("status")));

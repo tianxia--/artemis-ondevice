@@ -69,6 +69,7 @@ Android 13 及以上，不是从应用商店安装的应用，无障碍开关可
 
 ```bash
 scripts/fetch-voice.sh            # 只需一次：下载语音库和离线模型（不提交到 git）
+python3 scripts/regression.py     # 在连接的手机或模拟器上跑回归测试（调试版）
 scripts/dev-install.sh            # 编译、安装到 emulator-5554，并重新绑定无障碍服务
 scripts/dev-install.sh <serial>   # 安装到其他设备
 ```

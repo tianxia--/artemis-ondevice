@@ -15,6 +15,7 @@ All notable changes to this project are listed here. The format follows
 - Custom wake word (Settings > Run): 3 to 6 Chinese characters, converted with a bundled hanzi-to-pinyin table (`scripts/make-pinyin-table.py`, from pypinyin).
 - Voiceprint (Settings > Run): read three sentences, and voice calls ignore other people talking nearby. Stored only on the phone (3D-Speaker CAM++ model, fetched by `scripts/fetch-voice.sh`).
 - Model services can hold realtime voice models: each model is a task model or a realtime voice model, and a service has an optional realtime voice URL. "Test connection" checks the realtime connection when a service has only voice models.
+- `scripts/regression.py`: one-command regression run on a connected phone or emulator (typed tasks: direct answers, a settings lookup, a named app, a money refusal; voice calls: chat, time, a task read back, a merged addition, stop, goodbye), with a pass/fail table of time, steps and tokens.
 - `scripts/realtime-probe.py` tries a realtime voice endpoint from a Mac; `VoiceTestReceiver` drives voice calls over adb for testing without a microphone.
 
 - Logs for troubleshooting: every flow writes to a daily file kept 7 days (keys, addresses, e-mail and phone numbers masked; never what you said, task text or screen content), and Settings > Data > Export logs shares a zip with the logs, app and device info, settings and a summary of recent tasks. See docs/logging.md.
@@ -27,6 +28,8 @@ All notable changes to this project are listed here. The format follows
 - When fetching the model list fails, the message says that model names can be added by hand (some subscription plans have no model list).
 
 ### Fixed
+- A voice call could hang up while a task was about to start (between leaving the start buffer and running) and kill it; the first sentence could reach the service before the call was set up; talking over an answer that had not started yet left the next answer waiting 30 s.
+- Questions phone status answers were checked again in Settings when a learned lesson pointed there.
 - Confirmation summaries, questions and the final answer are written in the language of the task, so an English task no longer gets a Chinese confirmation or answer.
 
 ## [0.3.0] - 2026-11-12

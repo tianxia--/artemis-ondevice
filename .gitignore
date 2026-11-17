@@ -12,3 +12,6 @@ app/src/main/assets/voice/
 
 # scripts/realtime-probe.py event log (transcripts of test calls)
 realtime-probe.log.jsonl
+
+# scripts/regression.py reports
+scripts/regression-results/

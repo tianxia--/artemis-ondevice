@@ -87,6 +87,7 @@ history and only the latest screenshot is sent.
 
 ```bash
 scripts/fetch-voice.sh            # once: voice library and offline models (git-ignored)
+python3 scripts/regression.py     # regression run on a connected phone or emulator (debug build)
 scripts/dev-install.sh            # build, install on emulator-5554, re-bind accessibility
 scripts/dev-install.sh <serial>   # another device
 ```
