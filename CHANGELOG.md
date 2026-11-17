@@ -23,6 +23,8 @@ All notable changes to this project are listed here. The format follows
 - Logs for troubleshooting: every flow writes to a daily file kept 7 days (keys, addresses, e-mail and phone numbers masked; never what you said, task text or screen content), and Settings > Data > Export logs shares a zip with the logs, app and device info, settings and a summary of recent tasks. See docs/logging.md.
 
 - Voice wake-up checks itself every 30 s: when Android silences the microphone (another app records, or the service was restarted from the background) the notification says so instead of failing quietly, and the log records a heartbeat every 10 minutes. It also restarts with the accessibility service after the app was killed.
+- Voice calls recognize each finished sentence again with a bigger offline model (Paraformer small, Chinese, 78 MB, fetched by `scripts/fetch-voice.sh`): the small streaming model still decides when you stop and whether you talk over the answer, and the bigger one, 60-200 ms per sentence on a phone, gives the text that is sent and shown. Without it the streaming text is used.
+- Voice call captions are corrected: the sentence goes to the voice model at once, and in parallel the task model fixes homophones and near-sounding words with the installed apps' names as context ("高的地图" -> 高德地图); the caption changes about 0.4-0.7 s later. The voice model is also told its input is speech recognition and to read it by sound. Only whether a caption changed is logged.
 - Settings: higher wake sensitivity (wakes more easily, and more often by mistake), and a "keep wake-up running" row that shows whether battery optimization is on and opens the battery and Huawei/Honor app launch settings.
 
 ### Changed
@@ -42,6 +44,9 @@ All notable changes to this project are listed here. The format follows
 - The floating bubble, voice call panel, confirmation cards and notifications follow the language picked in the app instead of the system language.
 - Logs mask bare host names and IP addresses too (connection errors carried the service address).
 - A voice call could hang up while a task was about to start (between leaving the start buffer and running) and kill it; the first sentence could reach the service before the call was set up; talking over an answer that had not started yet left the next answer waiting 30 s.
+- A voice call stuck on "thinking" for 50 s: talking right after it connected cancelled the greeting before it was even sent, the service ignored the cancel and finished it first. An answer not sent yet is now withdrawn instead. The log says how much audio of a cancelled answer still arrived.
+- Voice wake-up went deaf after an offline exchange whose task never started (it waited for the task's end for good); voice calls waited the same way. Both give up after 10 s and say the task did not start.
+- Short model calls (caption fixing) ask Qwen-style services not to think first (`enable_thinking: false`; dropped if a service rejects it): thinking had used all 400 tokens with no answer on 6 of 18 sentences.
 - Questions phone status answers were checked again in Settings when a learned lesson pointed there.
 - Confirmation summaries, questions and the final answer are written in the language of the task, so an English task no longer gets a Chinese confirmation or answer.
 

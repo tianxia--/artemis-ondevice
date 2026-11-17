@@ -328,6 +328,15 @@ public class VoiceService extends Service implements Runnable {
     }
 
     /** Runs the task with the agent and returns the sentence to speak when it ends. */
+    private static final long START_WAIT_MS = 10_000;
+
+    /** Run {@code id} has begun (it is the current run), or a run already finished since {@code before}. */
+    private static boolean startedOrDone(String id, String before) {
+        RunRecord r = RunState.current();
+        String last = RunState.lastFinishedId();
+        return (r != null && id.equals(r.id)) || (last != null && !last.equals(before));
+    }
+
     private String runTask(String task) throws InterruptedException {
         AgentAccessibilityService a11y = AgentAccessibilityService.get();
         if (a11y == null) return "无障碍服务没有打开，没法操作手机。";
@@ -339,7 +348,17 @@ public class VoiceService extends Service implements Runnable {
         mic.stop(); // release the microphone for the apps the agent drives
         status(getString(R.string.voice_running));
         String before = RunState.lastFinishedId();
-        AgentService.start(this, task, false); // the result is spoken: stay where the task ended
+        String id = AgentService.start(this, task, false); // the result is spoken: stay where the task ended
+        // The start can be lost (seen once: no run began, and this waited for its end for good, deaf
+        // to the wake word): give up when it has not begun in time.
+        long until = System.currentTimeMillis() + START_WAIT_MS;
+        while (running && !startedOrDone(id, before)) {
+            if (System.currentTimeMillis() > until) {
+                AppLog.w(AppLog.VOICE, "the task did not start within " + START_WAIT_MS + " ms");
+                return "任务没有开始，请再说一次。";
+            }
+            Thread.sleep(200);
+        }
         while (running) {
             String last = RunState.lastFinishedId();
             if (last != null && !last.equals(before)) break;

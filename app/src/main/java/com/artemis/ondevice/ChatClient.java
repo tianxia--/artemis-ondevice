@@ -88,6 +88,19 @@ final class ChatClient {
         return this;
     }
 
+    /**
+     * Asks Qwen-style models not to think first (for short, quick jobs). A service that rejects
+     * the extra fields answers HTTP 400; the caller then turns this off and retries.
+     */
+    private boolean noThinking;
+
+    ChatClient noThinking(boolean on) {
+        noThinking = on;
+        return this;
+    }
+
+    boolean noThinking() { return noThinking; }
+
     /** Thrown before a call when today's tokens reached the daily limit. Not retried. */
     static final class LimitReached extends IllegalStateException {
         LimitReached(String m) { super(m); }
@@ -134,6 +147,10 @@ final class ChatClient {
         JSONObject body = anthropic
                 ? anthropicBody(model, system, userText, jpeg, tools, maxTokens)
                 : openAiBody(model, system, userText, jpeg, tools, maxTokens);
+        if (noThinking && !anthropic) {
+            // Qwen's switch, as vLLM/SGLang (chat template) and DashScope (top level) take it.
+            body.put("chat_template_kwargs", new JSONObject().put("enable_thinking", false)).put("enable_thinking", false);
+        }
         String path = anthropic ? "/v1/messages" : "/chat/completions";
         long t0 = System.currentTimeMillis();
         attempts = 0;

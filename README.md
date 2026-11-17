@@ -33,6 +33,10 @@ state in one step, without opening an app (right).
   </tr>
 </table>
 
+In calls, each finished sentence is recognized again by a bigger on-phone model (Paraformer), and
+the caption is then corrected by your task model with your installed apps' names as context
+("高的地图" becomes 高德地图) without slowing the answer.
+
 New settings: a custom wake word, higher wake sensitivity, keeping wake-up running (battery and
 background settings), a voiceprint so calls only listen to you, the voice call model and optional
 web search; and **Export logs** for troubleshooting.

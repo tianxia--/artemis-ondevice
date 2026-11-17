@@ -53,6 +53,18 @@ if [ ! -f "$ASSETS/asr/tokens.txt" ]; then
   cp "$TMP/$A/tokens.txt" "$ASSETS/asr/tokens.txt"
 fi
 
+# Sentence recognition in voice calls: Paraformer small (Chinese, int8, 78 MB). Once the user has
+# finished a sentence it is recognized again with this bigger model, far more accurately than the
+# streaming one above (which still detects turns and cut-ins as the user speaks).
+if [ ! -f "$ASSETS/sentence/tokens.txt" ]; then
+  P=sherpa-onnx-paraformer-zh-small-2024-03-09
+  fetch asr-models/$P.tar.bz2 da92b3db5218c5be53aad53e57d1b6e63e7fc98a0e054fbdd6dbe18e9c6b1450 "$TMP/sentence.tar.bz2"
+  tar xjf "$TMP/sentence.tar.bz2" -C "$TMP"
+  mkdir -p "$ASSETS/sentence"
+  cp "$TMP/$P/model.int8.onnx" "$ASSETS/sentence/model.onnx"
+  cp "$TMP/$P/tokens.txt" "$ASSETS/sentence/tokens.txt"
+fi
+
 # Speech synthesis: Piper VITS zh_CN xiao_ya, int8.
 if [ ! -f "$ASSETS/tts/tokens.txt" ]; then
   T=vits-piper-zh_CN-xiao_ya-medium-int8

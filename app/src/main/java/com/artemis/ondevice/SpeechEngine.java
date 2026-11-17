@@ -10,6 +10,11 @@ import com.k2fsa.sherpa.onnx.EndpointRule;
 import com.k2fsa.sherpa.onnx.FeatureConfig;
 import com.k2fsa.sherpa.onnx.KeywordSpotter;
 import com.k2fsa.sherpa.onnx.KeywordSpotterConfig;
+import com.k2fsa.sherpa.onnx.OfflineModelConfig;
+import com.k2fsa.sherpa.onnx.OfflineParaformerModelConfig;
+import com.k2fsa.sherpa.onnx.OfflineRecognizer;
+import com.k2fsa.sherpa.onnx.OfflineRecognizerConfig;
+import com.k2fsa.sherpa.onnx.OfflineStream;
 import com.k2fsa.sherpa.onnx.OfflineTts;
 import com.k2fsa.sherpa.onnx.OfflineTtsConfig;
 import com.k2fsa.sherpa.onnx.OfflineTtsModelConfig;
@@ -37,6 +42,8 @@ final class SpeechEngine {
     // Loaded after the wake word spotter, on another thread (loadRest): wake-up listens within a
     // second instead of after all models (once 85 s on a throttled phone). Use only after awaitReady.
     private OnlineRecognizer asr;
+    /** Recognizes a whole finished sentence, more accurately than asr; null when not packaged. */
+    private OfflineRecognizer sentenceAsr;
     private OfflineTts tts;
     private final java.util.concurrent.CountDownLatch rest = new java.util.concurrent.CountDownLatch(1);
     private volatile Exception restError;
@@ -65,6 +72,7 @@ final class SpeechEngine {
             asr = new OnlineRecognizer(am, asrConfig());
             asrStream = asr.createStream("");
             tts = new OfflineTts(am, ttsConfig());
+            sentenceAsr = exists(am, SENTENCE_MODEL) ? new OfflineRecognizer(am, sentenceConfig()) : null;
             speaker = Voiceprint.available(am) ? Voiceprint.extractor(am) : null;
             vad = wakeVad(am);
             prepare(phrases);
@@ -194,6 +202,24 @@ final class SpeechEngine {
         return asr.getResult(asrStream).getText().trim();
     }
 
+    boolean hasSentenceRecognizer() { return sentenceAsr != null; }
+
+    /**
+     * Recognizes a finished sentence (16 kHz) with the bigger offline model; null without it.
+     * Thread-safe enough for one caller: each call has its own stream.
+     */
+    String recognizeSentence(float[] samples) {
+        if (sentenceAsr == null) return null;
+        OfflineStream s = sentenceAsr.createStream();
+        try {
+            s.acceptWaveform(samples, SAMPLE_RATE);
+            sentenceAsr.decode(s);
+            return sentenceAsr.getResult(s).getText().trim();
+        } finally {
+            s.release();
+        }
+    }
+
     // ------------------------------------------------------------------ synthesis
 
     /** Synthesizes fixed phrases once so they play without delay later. */
@@ -264,6 +290,7 @@ final class SpeechEngine {
         kws.release();
         if (asrStream != null) asrStream.release();
         if (asr != null) asr.release();
+        if (sentenceAsr != null) sentenceAsr.release();
         if (speaker != null) speaker.release();
         if (vad != null) vad.release();
         if (tts != null) tts.release();
@@ -313,6 +340,32 @@ final class SpeechEngine {
         c.setModelConfig(m);
         c.setEndpointConfig(e);
         c.setEnableEndpoint(true);
+        return c;
+    }
+
+    private static final String SENTENCE_MODEL = DIR + "sentence/model.onnx";
+
+    private static boolean exists(AssetManager am, String path) {
+        try {
+            am.open(path).close();
+            return true;
+        } catch (IOException e) {
+            return false;
+        }
+    }
+
+    /** Paraformer small (Chinese): non-streaming, used once a sentence is finished. */
+    private static OfflineRecognizerConfig sentenceConfig() {
+        OfflineParaformerModelConfig p = new OfflineParaformerModelConfig();
+        p.setModel(SENTENCE_MODEL);
+        OfflineModelConfig m = new OfflineModelConfig();
+        m.setParaformer(p);
+        m.setTokens(DIR + "sentence/tokens.txt");
+        m.setModelType("paraformer");
+        m.setNumThreads(2);
+        OfflineRecognizerConfig c = new OfflineRecognizerConfig();
+        c.setFeatConfig(features());
+        c.setModelConfig(m);
         return c;
     }
 

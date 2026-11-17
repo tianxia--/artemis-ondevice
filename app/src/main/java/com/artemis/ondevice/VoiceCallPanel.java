@@ -83,6 +83,15 @@ final class VoiceCallPanel {
         });
     }
 
+    /** Replaces the caption of what the user said (corrected), keeping the reply shown. */
+    void correctUserSaid(String text) {
+        main.post(() -> {
+            if (card == null || TextUtils.isEmpty(text)) return;
+            you.setText(text);
+            you.setVisibility(View.VISIBLE);
+        });
+    }
+
     void assistantSays(String text) {
         main.post(() -> {
             if (card == null) return;
