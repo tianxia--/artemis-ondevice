@@ -34,13 +34,18 @@ import com.google.android.material.textfield.TextInputEditText;
 import java.util.ArrayList;
 import java.util.List;
 
-/** Model services, the active model, run options, permissions and data. */
+/**
+ * Settings: a start page of groups (SettingsPages) and one page per group: models, running
+ * tasks, voice, skills and experience, MCP, and general (language, permissions, data).
+ */
 public class SettingsActivity extends AppCompatActivity {
 
     private MaterialAutoCompleteTextView providerPicker, modelPicker;
     private LinearLayout providerList, skillList;
     private TextView a11yState;
     private List<ProviderStore.Provider> providers = new ArrayList<>();
+    /** Showing the list of groups rather than one group's page. */
+    private boolean startPage;
 
     @Override
     protected void onCreate(Bundle state) {
@@ -48,6 +53,12 @@ public class SettingsActivity extends AppCompatActivity {
         setContentView(R.layout.activity_settings);
         MaterialToolbar toolbar = findViewById(R.id.toolbar);
         toolbar.setNavigationOnClickListener(v -> finish());
+        // The start page lists the groups; a group's page shows only its own settings.
+        String page = getIntent().getStringExtra(SettingsPages.EXTRA_PAGE);
+        int container = SettingsPages.container(page);
+        startPage = container == 0;
+        toolbar.setTitle(SettingsPages.title(page));
+        findViewById(startPage ? R.id.categories : container).setVisibility(View.VISIBLE);
 
         providerPicker = findViewById(R.id.active_provider);
         modelPicker = findViewById(R.id.active_model);
@@ -88,20 +99,6 @@ public class SettingsActivity extends AppCompatActivity {
             ProviderStore.Active a = ProviderStore.getActive(this);
             if (a != null) setActive(a.provider, String.valueOf(parent.getItemAtPosition(position)));
             render();
-        });
-
-        TextInputEditText maxSteps = findViewById(R.id.max_steps);
-        maxSteps.setText(String.valueOf(AppSettings.maxSteps(this)));
-        maxSteps.addTextChangedListener(new TextWatcher() {
-            @Override public void beforeTextChanged(CharSequence s, int a, int b, int c) {}
-            @Override public void onTextChanged(CharSequence s, int a, int b, int c) {}
-            @Override public void afterTextChanged(Editable s) {
-                try {
-                    AppSettings.setMaxSteps(SettingsActivity.this, s.length() == 0 ? 0 : Integer.parseInt(s.toString()));
-                } catch (NumberFormatException ignored) {
-                    // maxLength=4 + inputType=number: only digits reach here.
-                }
-            }
         });
 
         MaterialSwitch shot = findViewById(R.id.switch_screenshot);
@@ -366,6 +363,8 @@ public class SettingsActivity extends AppCompatActivity {
         super.onResume();
         render();
         renderSentenceModel();
+        // States change on the group pages (and outside the app): refresh the summaries on return.
+        if (startPage) SettingsPages.renderStart(this, findViewById(R.id.categories));
     }
 
     @Override

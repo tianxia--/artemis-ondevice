@@ -140,7 +140,7 @@ final class ChatClient {
             long today = UsageStore.todayTokens(usageCtx);
             if (limit > 0 && today >= limit) {
                 throw new LimitReached("Today's token limit is reached (" + today + " of " + limit
-                        + "); it resets tomorrow, or raise it in Settings > Usage.");
+                        + "); it resets tomorrow, or raise it in Settings > Models > Model usage and limits.");
             }
         }
         boolean anthropic = ProviderStore.API_ANTHROPIC.equals(provider.api);

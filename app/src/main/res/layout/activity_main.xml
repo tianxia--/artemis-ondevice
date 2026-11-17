@@ -269,66 +269,59 @@
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
-            <!-- Overview -->
+            <!-- Today: tasks, success rate, tokens and cost; tapping opens the usage screen. -->
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="20dp"
                 android:layout_marginBottom="8dp"
-                android:text="@string/section_overview"
+                android:text="@string/section_today"
                 android:textAppearance="@style/TextAppearance.Artemis.Section" />
 
-            <LinearLayout
+            <com.google.android.material.card.MaterialCardView
+                android:id="@+id/today_card"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="horizontal">
+                android:clickable="true"
+                android:focusable="true"
+                app:cardCornerRadius="16dp">
 
-                <include
-                    android:id="@+id/stat_runs"
-                    layout="@layout/view_metric"
-                    android:layout_width="0dp"
+                <LinearLayout
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_weight="1" />
+                    android:orientation="horizontal"
+                    android:paddingHorizontal="8dp"
+                    android:paddingVertical="14dp">
 
-                <include
-                    android:id="@+id/stat_success"
-                    layout="@layout/view_metric"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_marginHorizontal="8dp"
-                    android:layout_weight="1" />
+                    <include
+                        android:id="@+id/stat_runs"
+                        layout="@layout/view_stat"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1" />
 
-                <include
-                    android:id="@+id/stat_step"
-                    layout="@layout/view_metric"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1" />
-            </LinearLayout>
+                    <include
+                        android:id="@+id/stat_success"
+                        layout="@layout/view_stat"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1" />
 
-            <!-- Today's model usage; tapping opens the usage screen. -->
-            <LinearLayout
-                android:id="@+id/usage_row"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:orientation="horizontal">
+                    <include
+                        android:id="@+id/stat_tokens"
+                        layout="@layout/view_stat"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1" />
 
-                <include
-                    android:id="@+id/stat_tokens"
-                    layout="@layout/view_metric"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_marginEnd="8dp"
-                    android:layout_weight="1" />
-
-                <include
-                    android:id="@+id/stat_cost"
-                    layout="@layout/view_metric"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1" />
-            </LinearLayout>
+                    <include
+                        android:id="@+id/stat_cost"
+                        layout="@layout/view_stat"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
 
             <!-- History -->
             <LinearLayout
@@ -344,13 +337,6 @@
                     android:layout_weight="1"
                     android:text="@string/section_recent"
                     android:textAppearance="@style/TextAppearance.Artemis.Section" />
-
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/clear_history"
-                    style="@style/Widget.Material3.Button.TextButton"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="@string/action_clear" />
             </LinearLayout>
 
             <TextView
@@ -368,6 +354,14 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:nestedScrollingEnabled="false" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/history_more"
+                style="@style/Widget.Material3.Button.TextButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center_horizontal"
+                android:visibility="gone" />
         </LinearLayout>
     </androidx.core.widget.NestedScrollView>
 </LinearLayout>

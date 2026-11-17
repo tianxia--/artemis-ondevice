@@ -245,14 +245,13 @@
     <string name="usage_row">%1$d 次 · 输入 %2$s · 输出 %3$s</string>
     <string name="usage_purpose_task">执行任务</string>
     <string name="usage_purpose_review">任务复盘</string>
-    <string name="usage_purpose_voice">语音纠错</string>
+    <string name="usage_purpose_voice">语音</string>
     <string name="usage_purpose_test">测试连接</string>
     <string name="usage_none">这段时间没有模型调用</string>
     <string name="limit_run">单个任务的 tokens 上限</string>
     <string name="limit_run_hint">超过后任务停止。一般任务用 2 万到 6 万。0 表示不限</string>
     <string name="limit_daily">每天的 tokens 上限</string>
     <string name="limit_daily_hint">所有模型调用合计，达到后当天不再执行任务和复盘（复盘在用到 80% 时就停止）。0 表示不限</string>
-    <string name="limit_steps_note">单个任务的最大步数在 设置 > 执行 里修改（默认 50）。</string>
     <string name="limit_run_reached">这个任务已经用了 %1$s tokens，达到单个任务的上限 %2$s，已停止。可以在 设置 > 模型用量与上限 里调整。</string>
     <string name="limit_daily_reached">今天已经用了 %1$s tokens，达到每日上限 %2$s，明天恢复。可以在 设置 > 模型用量与上限 里调整。</string>
     <string name="price_title">价格（选填）</string>
@@ -348,4 +347,31 @@
     <string name="wake_test_no_result">还没有结果，稍等一下再看</string>
     <string name="wake_test_result_title">唤醒率 %1$d%%</string>
     <string name="wake_test_result">说了 %1$d 次，唤醒 %2$d 次\n· 唤醒模型听到：%3$d\n· 语音识别听到：%4$d\n· 两个都听到：%5$d\n\n没唤醒 %6$d 次\n· 只差一个字：%7$d\n· 听起来不像：%8$d\n\n没检测到说话却被唤醒：%9$d 次</string>
+    <!-- Settings start page: groups -->
+    <string name="cat_model">模型</string>
+    <string name="cat_run">执行任务</string>
+    <string name="cat_voice">语音</string>
+    <string name="cat_skills">技能与经验</string>
+    <string name="cat_mcp">连接其他工具</string>
+    <string name="cat_general">通用</string>
+    <string name="cat_run_summary">截图%1$s · 悬浮球%2$s · 敏感操作确认%3$s</string>
+    <string name="cat_voice_summary">唤醒：%1$s · 通话：%2$s</string>
+    <string name="cat_skills_summary">%1$d 个技能 · %2$d 条经验</string>
+    <string name="cat_mcp_summary">MCP 服务%1$s，让电脑上的 AI 工具操作这台手机</string>
+    <string name="cat_general_summary">语言：%1$s · 无障碍%2$s · 日志与数据</string>
+    <string name="state_on">开</string>
+    <string name="state_off">关</string>
+    <string name="voice_call_off">不用</string>
+    <string name="section_usage">用量与上限</string>
+    <string name="section_wake">语音唤醒</string>
+    <string name="section_call">语音通话</string>
+    <!-- Home -->
+    <string name="section_today">今日</string>
+    <string name="today_runs">任务</string>
+    <string name="action_show_all">查看全部（%d）</string>
+    <string name="action_show_less">收起</string>
+    <string name="usage_tokens_short">Tokens</string>
+    <string name="usage_cost_short">花费</string>
+    <string name="state_enabled">已开启</string>
+    <string name="state_disabled">未开启</string>
 </resources>

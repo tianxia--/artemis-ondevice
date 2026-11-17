@@ -241,14 +241,13 @@
     <string name="usage_row">%1$d calls · in %2$s · out %3$s</string>
     <string name="usage_purpose_task">Tasks</string>
     <string name="usage_purpose_review">Task reviews</string>
-    <string name="usage_purpose_voice">Voice correction</string>
+    <string name="usage_purpose_voice">Voice</string>
     <string name="usage_purpose_test">Connection tests</string>
     <string name="usage_none">No model calls in this period</string>
     <string name="limit_run">Token limit per task</string>
     <string name="limit_run_hint">The task stops beyond it. A typical task uses 20k to 60k. 0 means no limit</string>
     <string name="limit_daily">Token limit per day</string>
     <string name="limit_daily_hint">All model calls together; once reached, no tasks or reviews run that day (reviews stop at 80%). 0 means no limit</string>
-    <string name="limit_steps_note">The step limit per task is in Settings > Run (default 50).</string>
     <string name="limit_run_reached">This task used %1$s tokens, the per-task limit of %2$s, and was stopped. Change it in Settings > Model usage and limits.</string>
     <string name="limit_daily_reached">%1$s tokens were used today, the daily limit of %2$s; it resets tomorrow. Change it in Settings > Model usage and limits.</string>
     <string name="price_title">Price (optional)</string>
@@ -344,4 +343,31 @@
     <string name="wake_test_no_result">No result yet; try again in a moment</string>
     <string name="wake_test_result_title">Wake rate %1$d%%</string>
     <string name="wake_test_result">%1$d tries, %2$d woken\n· by the spotter: %3$d\n· by the recognizer: %4$d\n· by both: %5$d\n\n%6$d missed\n· one syllable off: %7$d\n· did not sound like it: %8$d\n\nWoken without detected speech: %9$d</string>
+    <!-- Settings start page: groups -->
+    <string name="cat_model">Models</string>
+    <string name="cat_run">Running tasks</string>
+    <string name="cat_voice">Voice</string>
+    <string name="cat_skills">Skills and experience</string>
+    <string name="cat_mcp">Connect other tools</string>
+    <string name="cat_general">General</string>
+    <string name="cat_run_summary">Screenshots %1$s · bubble %2$s · confirm sensitive actions %3$s</string>
+    <string name="cat_voice_summary">Wake-up: %1$s · calls: %2$s</string>
+    <string name="cat_skills_summary">Skills: %1$d · lessons: %2$d</string>
+    <string name="cat_mcp_summary">MCP server %1$s, lets AI tools on a computer use this phone</string>
+    <string name="cat_general_summary">Language: %1$s · accessibility %2$s · logs and data</string>
+    <string name="state_on">on</string>
+    <string name="state_off">off</string>
+    <string name="voice_call_off">off</string>
+    <string name="section_usage">Usage and limits</string>
+    <string name="section_wake">Voice wake-up</string>
+    <string name="section_call">Voice calls</string>
+    <!-- Home -->
+    <string name="section_today">Today</string>
+    <string name="today_runs">Tasks</string>
+    <string name="action_show_all">Show all (%d)</string>
+    <string name="action_show_less">Show less</string>
+    <string name="usage_tokens_short">Tokens</string>
+    <string name="usage_cost_short">Cost</string>
+    <string name="state_enabled">on</string>
+    <string name="state_disabled">off</string>
 </resources>

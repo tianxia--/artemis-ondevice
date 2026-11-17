@@ -48,8 +48,10 @@ public class UsageActivity extends AppCompatActivity {
             });
             periods.addView(c);
         }
-        limitField(findViewById(R.id.limit_run), AppSettings.runTokenLimit(this), true);
-        limitField(findViewById(R.id.limit_daily), AppSettings.dailyTokenLimit(this), false);
+        // All limits in one place (the step limit used to be in Settings > Run).
+        limitField(findViewById(R.id.max_steps), AppSettings.maxSteps(this), v -> AppSettings.setMaxSteps(this, (int) v));
+        limitField(findViewById(R.id.limit_run), AppSettings.runTokenLimit(this), v -> AppSettings.setRunTokenLimit(this, v));
+        limitField(findViewById(R.id.limit_daily), AppSettings.dailyTokenLimit(this), v -> AppSettings.setDailyTokenLimit(this, v));
     }
 
     @Override
@@ -58,7 +60,7 @@ public class UsageActivity extends AppCompatActivity {
         render();
     }
 
-    private void limitField(TextInputEditText f, long value, boolean run) {
+    private void limitField(TextInputEditText f, long value, java.util.function.LongConsumer save) {
         f.setText(String.valueOf(value));
         f.addTextChangedListener(new TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int a, int b, int c) {}
@@ -70,10 +72,40 @@ public class UsageActivity extends AppCompatActivity {
                 } catch (NumberFormatException e) {
                     return;
                 }
-                if (run) AppSettings.setRunTokenLimit(UsageActivity.this, v);
-                else AppSettings.setDailyTokenLimit(UsageActivity.this, v);
+                save.accept(v);
             }
         });
+    }
+
+    /** Bumped on every render: run stats read in the background for an older period are dropped. */
+    private int renderId;
+
+    /** Finished tasks in the period and their time per step (moved here from Home). */
+    private void renderRunStats(GridLayout grid) {
+        final int id = ++renderId;
+        java.util.Calendar c = java.util.Calendar.getInstance();
+        c.set(java.util.Calendar.HOUR_OF_DAY, 0);
+        c.set(java.util.Calendar.MINUTE, 0);
+        c.set(java.util.Calendar.SECOND, 0);
+        c.set(java.util.Calendar.MILLISECOND, 0);
+        final long since = days <= 0 ? 0 : c.getTimeInMillis() - (days - 1) * 86_400_000L;
+        new Thread(() -> {
+            int done = 0, steps = 0;
+            long time = 0;
+            for (RunRecord r : RunStore.list(this)) {
+                if (r.isRunning() || r.startedAt < since) continue;
+                done++;
+                steps += r.steps.size();
+                time += r.durationMs();
+            }
+            final int n = done;
+            final String perStep = steps == 0 ? "–" : Format.duration(time / steps);
+            runOnUiThread(() -> {
+                if (id != renderId || isDestroyed()) return;
+                metric(grid, String.valueOf(n), getString(R.string.overview_runs));
+                metric(grid, perStep, getString(R.string.overview_step));
+            });
+        }, "artemis-usage-runs").start();
     }
 
     private void render() {
@@ -99,6 +131,7 @@ public class UsageActivity extends AppCompatActivity {
         metric(grid, Format.tokens(total.tokens()), getString(R.string.metric_tokens_total));
         metric(grid, Format.tokens(total.in) + " / " + Format.tokens(total.out), getString(R.string.metric_tokens));
         metric(grid, priced.text().isEmpty() ? "–" : priced.text(), getString(R.string.usage_cost));
+        renderRunStats(grid);
 
         List<String> notes = new ArrayList<>();
         if (days == 1) {

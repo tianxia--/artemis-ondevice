@@ -79,7 +79,12 @@ public class MainActivity extends AppCompatActivity implements RunState.Listener
         liveLast = findViewById(R.id.live_last);
         emptyHistory = findViewById(R.id.empty_history);
 
-        modelChip.setOnClickListener(v -> startActivity(new Intent(this, SettingsActivity.class)));
+        modelChip.setOnClickListener(v -> startActivity(SettingsPages.open(this, "model")));
+        findViewById(R.id.today_card).setOnClickListener(v -> startActivity(new Intent(this, UsageActivity.class)));
+        findViewById(R.id.history_more).setOnClickListener(v -> {
+            showAllHistory = !showAllHistory;
+            loadHistory();
+        });
         findViewById(R.id.setup_a11y_button).setOnClickListener(
                 v -> startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)));
         findViewById(R.id.setup_model_button).setOnClickListener(
@@ -90,15 +95,6 @@ public class MainActivity extends AppCompatActivity implements RunState.Listener
             RunRecord r = RunState.current();
             if (r != null) openRun(r.id);
         });
-        findViewById(R.id.clear_history).setOnClickListener(v -> new MaterialAlertDialogBuilder(this)
-                .setMessage(R.string.confirm_clear_history)
-                .setPositiveButton(R.string.action_clear, (d, w) -> io.execute(() -> {
-                    RunStore.clear(this);
-                    main.post(this::loadHistory);
-                }))
-                .setNegativeButton(R.string.cancel, null)
-                .show());
-
 
         RecyclerView list = findViewById(R.id.history);
         list.setLayoutManager(new LinearLayoutManager(this));
@@ -256,45 +252,50 @@ public class MainActivity extends AppCompatActivity implements RunState.Listener
             List<RunRecord> runs = RunStore.list(this);
             main.post(() -> {
                 if (isDestroyed()) return;
-                adapter.submit(runs);
+                // The latest few; the rest on request (clearing them is in Settings > General).
+                boolean more = runs.size() > RECENT;
+                adapter.submit(more && !showAllHistory ? runs.subList(0, RECENT) : runs);
                 emptyHistory.setVisibility(runs.isEmpty() ? View.VISIBLE : View.GONE);
-                findViewById(R.id.clear_history).setVisibility(runs.isEmpty() ? View.GONE : View.VISIBLE);
-                renderOverview(runs);
+                com.google.android.material.button.MaterialButton toggle = findViewById(R.id.history_more);
+                toggle.setVisibility(more ? View.VISIBLE : View.GONE);
+                toggle.setText(showAllHistory ? getString(R.string.action_show_less)
+                        : getString(R.string.action_show_all, runs.size()));
+                renderToday(runs);
             });
         });
     }
 
-    /** Today's tokens and cost; both tiles open the usage screen. */
-    private void renderUsage() {
+    /** Recent tasks shown before "Show all". */
+    private static final int RECENT = 5;
+    private boolean showAllHistory;
+
+    /**
+     * Today at a glance: finished tasks, their success rate, tokens and cost. The card opens the
+     * usage screen, which has the limits, other periods and the time per step.
+     */
+    private void renderToday(List<RunRecord> runs) {
+        java.util.Calendar c = java.util.Calendar.getInstance();
+        c.set(java.util.Calendar.HOUR_OF_DAY, 0);
+        c.set(java.util.Calendar.MINUTE, 0);
+        c.set(java.util.Calendar.SECOND, 0);
+        c.set(java.util.Calendar.MILLISECOND, 0);
+        long midnight = c.getTimeInMillis();
+        int done = 0, ok = 0;
+        for (RunRecord r : runs) {
+            if (r.isRunning() || r.startedAt < midnight) continue;
+            done++;
+            if (RunRecord.COMPLETED.equals(r.status)) ok++;
+        }
         List<UsageStore.Row> rows = UsageStore.rows(this, 1);
         long tokens = 0;
         for (UsageStore.Row r : rows) tokens += r.tokens();
         Pricing.Total total = Pricing.total(this, rows);
-        long limit = AppSettings.dailyTokenLimit(this);
-        String tokenText = Format.tokens(tokens) + (limit > 0 ? " / " + Format.tokens(limit) : "");
         String costText = total.priced ? (total.mixed ? "–" : total.text())
                 : tokens == 0 ? "–" : getString(R.string.overview_no_price);
-        metric(R.id.stat_tokens, tokenText, R.string.overview_tokens_today);
-        metric(R.id.stat_cost, costText, R.string.overview_cost_today);
-        View.OnClickListener open = v -> startActivity(new Intent(this, UsageActivity.class));
-        findViewById(R.id.stat_tokens).setOnClickListener(open);
-        findViewById(R.id.stat_cost).setOnClickListener(open);
-    }
-
-    private void renderOverview(List<RunRecord> runs) {
-        int done = 0, ok = 0, steps = 0;
-        long time = 0;
-        for (RunRecord r : runs) {
-            if (r.isRunning()) continue;
-            done++;
-            if (RunRecord.COMPLETED.equals(r.status)) ok++;
-            steps += r.steps.size();
-            time += r.durationMs();
-        }
-        metric(R.id.stat_runs, String.valueOf(done), R.string.overview_runs);
+        metric(R.id.stat_runs, String.valueOf(done), R.string.today_runs);
         metric(R.id.stat_success, done == 0 ? "–" : Math.round(100f * ok / done) + "%", R.string.overview_success);
-        renderUsage();
-        metric(R.id.stat_step, steps == 0 ? "–" : Format.duration(time / steps), R.string.overview_step);
+        metric(R.id.stat_tokens, tokens == 0 ? "–" : Format.tokens(tokens), R.string.usage_tokens_short);
+        metric(R.id.stat_cost, costText, R.string.usage_cost_short);
     }
 
     private void metric(int id, String value, int label) {

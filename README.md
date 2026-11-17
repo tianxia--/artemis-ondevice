@@ -38,14 +38,17 @@ In calls, each finished sentence is recognized again by a bigger on-phone model 
 the caption is then corrected by your task model with your installed apps' names as context
 ("高的地图" becomes 高德地图) without slowing the answer.
 
-New settings: a custom wake word, higher wake sensitivity, keeping wake-up running (battery and
-background settings), a voiceprint so calls only listen to you, the voice call model and optional
-web search; and **Export logs** for troubleshooting.
+**Clearer screens.** Settings opens on six groups (models, running tasks, voice, skills and
+experience, connecting other tools, general), each showing what it is set to now (left). Voice holds
+the wake word, sensitivity, wake test, keeping wake-up running, the voice call model, the sentence
+recognizer download, the voiceprint and web search (right). Home shows today's tasks, success rate,
+tokens and cost in one card and the latest five tasks; all limits (steps and tokens) are on the
+usage screen; **Export logs** is under General.
 
 <table>
   <tr>
-    <td><img src="docs/assets/settings-voice-en.png" width="280" alt="Voice settings: wake word, sensitivity, background, voiceprint, voice call model"></td>
-    <td><img src="docs/assets/settings-data-en.png" width="280" alt="Data settings: export logs"></td>
+    <td><img src="docs/assets/settings-groups-en.png" width="280" alt="Settings start page: six groups, each with its current state"></td>
+    <td><img src="docs/assets/settings-voice-en.png" width="280" alt="Voice settings: wake-up and voice calls"></td>
   </tr>
 </table>
 
@@ -108,7 +111,7 @@ history and only the latest screenshot is sent.
   used when the task needs one or names one ("open Clock and tell me the time").
 - **Voice wake-up that stays up**: it checks itself every 30 s and says so in the notification when
   Android takes the microphone away; Settings shows whether battery optimization may stop it.
-- **Logs**: every flow is logged to a file on the phone (7 days, no private content); Settings > Data >
+- **Logs**: every flow is logged to a file on the phone (7 days, no private content); Settings > General >
   Export logs shares them for troubleshooting. See [docs/logging.md](docs/logging.md).
 - **Money is off limits**: banking, payment, wallet, securities and crypto apps (including WeChat, QQ
   and Alipay) are never operated, tasks about transfers, payments or purchases are refused, and
