@@ -18,6 +18,32 @@ Adding a model service, running a task, the run details and switching the app la
 
 https://github.com/user-attachments/assets/de1a104c-70e2-4eec-8132-3c98319e0f43
 
+## What's new
+
+**Voice calls.** Say the wake word and talk: what you say is recognized on the phone, a realtime
+voice model answers aloud and hands phone work to the agent, and the result is read back. A panel
+shows what is heard and said; during the task it shrinks to a small pill (left: Chinese UI).
+**Direct answers.** Time, battery, network and similar questions are answered from the phone's
+state in one step, without opening an app (right).
+
+<table>
+  <tr>
+    <td><img src="docs/assets/voice-call.gif" width="280" alt="Voice call: the wake word, a task, the agent working in Settings and the answer read back"></td>
+    <td><img src="docs/assets/direct-answer-en.gif" width="280" alt="Asking for the time: answered in one step without opening an app"></td>
+  </tr>
+</table>
+
+New settings: a custom wake word, higher wake sensitivity, keeping wake-up running (battery and
+background settings), a voiceprint so calls only listen to you, the voice call model and optional
+web search; and **Export logs** for troubleshooting.
+
+<table>
+  <tr>
+    <td><img src="docs/assets/settings-voice-en.png" width="280" alt="Voice settings: wake word, sensitivity, background, voiceprint, voice call model"></td>
+    <td><img src="docs/assets/settings-data-en.png" width="280" alt="Data settings: export logs"></td>
+  </tr>
+</table>
+
 ## Download
 
 Get the APK from [Releases](https://github.com/tianxia--/artemis-ondevice/releases) and install it on an
@@ -58,7 +84,8 @@ history and only the latest screenshot is sent.
   model list can be fetched from the service, and the connection can be tested.
 - **Privacy**: API keys are encrypted with an Android Keystore AES-GCM key and never logged. The
   base URL is masked on screen by default (tap the eye icon to show it) and removed from error
-  messages. No network port is opened unless you turn on the MCP server. Logcat (`ArtemisAgent`) only carries timings and action names.
+  messages. No network port is opened unless you turn on the MCP server. Logs carry states,
+  timings and names only; keys, addresses and phone numbers are masked.
 - **MCP server** (optional, off by default): AI tools on your computer, such as Claude Code or
   Cursor, can give the phone tasks or operate it directly over MCP; see [docs/mcp.md](docs/mcp.md).
 - **Language**: Settings > Language switches the app between Simplified Chinese and English, or
@@ -70,6 +97,12 @@ history and only the latest screenshot is sent.
   at any time, confirm sensitive actions by voice, and hear the result. Speech is recognized on the
   phone and only text is sent; say "停下" to stop a task or "结束对话" to hang up. The wake word can be
   changed, and a voiceprint makes calls ignore other people nearby.
+- **Direct answers**: the agent and voice calls see the phone's state (time, battery, network,
+  Wi-Fi / Bluetooth / airplane, ringer and do not disturb, volume, brightness, screen timeout,
+  storage, device), so such questions are answered in one step without opening an app. Apps are
+  used when the task needs one or names one ("open Clock and tell me the time").
+- **Voice wake-up that stays up**: it checks itself every 30 s and says so in the notification when
+  Android takes the microphone away; Settings shows whether battery optimization may stop it.
 - **Logs**: every flow is logged to a file on the phone (7 days, no private content); Settings > Data >
   Export logs shares them for troubleshooting. See [docs/logging.md](docs/logging.md).
 - **Money is off limits**: banking, payment, wallet, securities and crypto apps (including WeChat, QQ
@@ -87,10 +120,13 @@ history and only the latest screenshot is sent.
 
 ```bash
 scripts/fetch-voice.sh            # once: voice library and offline models (git-ignored)
-python3 scripts/regression.py     # regression run on a connected phone or emulator (debug build)
 scripts/dev-install.sh            # build, install on emulator-5554, re-bind accessibility
 scripts/dev-install.sh <serial>   # another device
+python3 scripts/regression.py     # regression run on a connected phone or emulator (debug build)
 ```
+
+`./gradlew assembleDebug -Partemis.abi=arm64-v8a` builds for one ABI only (a smaller APK for
+quick installs).
 
 The APK alone: `./gradlew assembleDebug` -> `app/build/outputs/apk/debug/app-debug.apk`.
 
@@ -104,6 +140,11 @@ can also turn it on in Settings > Accessibility > Artemis On-Device.
    **Fetch from service** or type a model ID, and **Save**.
 3. Type a task on the home screen and tap **Start**. Follow it in the floating bubble; the run
    details open when it ends.
+
+For voice calls: turn on **Voice wake-up**, add a service that has a realtime voice model (for
+example Qwen-Audio realtime; enter its **Realtime voice URL**, such as
+`wss://<host>/api-ws/v1/realtime`), and pick it as the **Voice call model**. Optionally change the
+wake word and record a voiceprint in the same section.
 
 A model service can also be added over adb (only adb shell / system can send this broadcast):
 
@@ -143,8 +184,9 @@ git config core.hooksPath .githooks
   screenshot.
 - Aggressive OEM battery savers may stop the run in the background; allow the app to run
   unrestricted there.
-- On Android 12 and below, the floating bubble and notifications follow the system language
-  rather than the in-app language choice.
+- Voice recognition and the wake word are Mandarin only.
+- Voice calls need a realtime voice model service (Qwen-Audio realtime protocol); with web search
+  on, that service sometimes takes 10-30 s to answer.
 
 ## Acknowledgements
 
