@@ -34,8 +34,11 @@ All notable changes to this project are listed here. The format follows
 - Less output per step: no memory update in the turn that finishes, and optional arguments (a target description next to an index, `commits`, `summary`) left out unless needed. Final steps output 117-133 tokens instead of 195-203. Each step's log now shows how many characters the reasoning and each tool's arguments took.
 - Faster tasks: the first turn plans and acts together instead of only planning, each turn's reasoning is one or two sentences, and the start pause is skipped when the run did not start from our own screen. On three test tasks: 24.2 s instead of 27.5 s, 23.8 s instead of 44.8 s, 12.5 s instead of 14.2 s.
 - When fetching the model list fails, the message says that model names can be added by hand (some subscription plans have no model list).
+- Settings > Skills and experience lists lessons in use first (by kind, most seen first) and folds candidates and switched-off lessons under "N more"; lesson text reads "When a task..." instead of "When A task...", and counts say "used 1 time".
 
 ### Fixed
+- The app no longer crashes when the accessibility service is turned off and on again quickly (as after a reinstall) before the floating bubble is shown.
+- The Background settings button on the Voice page no longer wraps onto three lines on narrow phones.
 - Voice wake-up has a second path: while someone speaks, up to 4 s are run through the offline speech recognizer and compared with the wake word by sound (toneless pinyin, one dropped, extra or rhyming syllable allowed for 4+ characters, as long as the last syllable or a rhyme of it is there: 你好特, 你好啊特 and 你好阿德 count, 你好啊 does not). The small spotter alone missed the wake word often. The log says which path woke it; what was said is not logged.
 - The wake word was often missed: it is now also registered as spoken (third-tone sandhi: 你好 is said ní hǎo, not nǐ hǎo), for custom wake words too, and normal sensitivity is a bit easier (boost 1.5, threshold 0.20 instead of the stock 1.0 / 0.25; high is 2.0 / 0.12).
 - Voice wake-up listens within a second of starting: the wake word model loads first and the others in the background (all at once took 10-25 s, once 85 s on a throttled phone, and wake words in that time were missed). The notification says it is getting ready until then.

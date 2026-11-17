@@ -32,6 +32,7 @@ import com.google.android.material.textfield.MaterialAutoCompleteTextView;
 import com.google.android.material.textfield.TextInputEditText;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -486,7 +487,9 @@ public class SettingsActivity extends AppCompatActivity {
             View row = LayoutInflater.from(this).inflate(R.layout.item_skill, skillList, false);
             ((TextView) row.findViewById(R.id.skill_name)).setText(sk.name);
             ((TextView) row.findViewById(R.id.skill_meta)).setText(
-                    getString(R.string.skill_meta, sk.actions.size(), sk.used, sk.succeeded));
+                    getString(R.string.skill_meta,
+                            getResources().getQuantityString(R.plurals.skill_steps, sk.actions.size(), sk.actions.size()),
+                            getResources().getQuantityString(R.plurals.lesson_used, sk.used, sk.used), sk.succeeded));
             MaterialSwitch enabled = row.findViewById(R.id.skill_enabled);
             enabled.setChecked(sk.enabled);
             enabled.setOnCheckedChangeListener((b, on) -> {
@@ -669,41 +672,63 @@ public class SettingsActivity extends AppCompatActivity {
         reflect.setOnCheckedChangeListener((b, on) -> AppSettings.setReflect(this, on));
     }
 
+    /** Candidates and switched-off lessons are folded away until asked for. */
+    private boolean showAllLessons;
+
     private void renderLessons() {
-        List<Experience> all = ExperienceStore.list(this);
+        List<Experience> all = new ArrayList<>(ExperienceStore.list(this));
         LinearLayout list = findViewById(R.id.lessons);
         list.removeAllViews();
         findViewById(R.id.lessons_empty).setVisibility(all.isEmpty() ? View.VISIBLE : View.GONE);
-        for (String layer : new String[]{Experience.PRINCIPLE, Experience.PATTERN, Experience.FACT}) {
-            for (Experience e : all) {
-                if (!layer.equals(e.layer)) continue;
-                View row = LayoutInflater.from(this).inflate(R.layout.item_skill, list, false);
-                ((TextView) row.findViewById(R.id.skill_name)).setText(e.promptLine());
-                ((TextView) row.findViewById(R.id.skill_meta)).setText(lessonMeta(e));
-                MaterialSwitch on = row.findViewById(R.id.skill_enabled);
-                on.setChecked(!e.off);
-                on.setOnCheckedChangeListener((b, checked) -> {
-                    e.off = !checked;
-                    updateLesson(e);
-                    ((TextView) row.findViewById(R.id.skill_meta)).setText(lessonMeta(e));
-                });
-                row.setOnClickListener(v -> new MaterialAlertDialogBuilder(this)
-                        .setMessage(e.promptLine())
-                        .setItems(new CharSequence[]{
-                                getString(e.approved ? R.string.lesson_unapprove : R.string.lesson_approve),
-                                getString(R.string.delete)}, (d, which) -> {
-                            if (which == 0) {
-                                e.approved = !e.approved;
-                                updateLesson(e);
-                                renderLessons();
-                            } else {
-                                confirmDeleteLesson(e);
-                            }
-                        })
-                        .show());
-                list.addView(row);
-            }
+        // In use first, then candidates, then switched off; within each, by layer, most seen first.
+        List<String> layers = Arrays.asList(Experience.PRINCIPLE, Experience.PATTERN, Experience.FACT);
+        all.sort((a, b) -> a.off != b.off ? (a.off ? 1 : -1)
+                : a.active() != b.active() ? (a.active() ? -1 : 1)
+                : layers.indexOf(a.layer) != layers.indexOf(b.layer) ? layers.indexOf(a.layer) - layers.indexOf(b.layer)
+                : b.seen - a.seen);
+        int inUse = 0;
+        for (Experience e : all) if (!e.off && e.active()) inUse++;
+        int shown = showAllLessons || inUse == 0 ? all.size() : inUse;
+        for (Experience e : all.subList(0, shown)) list.addView(lessonRow(e, list));
+        if (inUse > 0 && inUse < all.size()) {
+            com.google.android.material.button.MaterialButton more = new com.google.android.material.button.MaterialButton(
+                    this, null, com.google.android.material.R.attr.borderlessButtonStyle);
+            more.setText(showAllLessons ? getString(R.string.action_show_less)
+                    : getString(R.string.lessons_show_more, all.size() - inUse));
+            more.setOnClickListener(v -> {
+                showAllLessons = !showAllLessons;
+                renderLessons();
+            });
+            list.addView(more);
         }
+    }
+
+    private View lessonRow(Experience e, LinearLayout list) {
+        View row = LayoutInflater.from(this).inflate(R.layout.item_skill, list, false);
+        ((TextView) row.findViewById(R.id.skill_name)).setText(e.promptLine());
+        ((TextView) row.findViewById(R.id.skill_meta)).setText(lessonMeta(e));
+        MaterialSwitch on = row.findViewById(R.id.skill_enabled);
+        on.setChecked(!e.off);
+        on.setOnCheckedChangeListener((b, checked) -> {
+            e.off = !checked;
+            updateLesson(e);
+            ((TextView) row.findViewById(R.id.skill_meta)).setText(lessonMeta(e));
+        });
+        row.setOnClickListener(v -> new MaterialAlertDialogBuilder(this)
+                .setMessage(e.promptLine())
+                .setItems(new CharSequence[]{
+                        getString(e.approved ? R.string.lesson_unapprove : R.string.lesson_approve),
+                        getString(R.string.delete)}, (d, which) -> {
+                    if (which == 0) {
+                        e.approved = !e.approved;
+                        updateLesson(e);
+                        renderLessons();
+                    } else {
+                        confirmDeleteLesson(e);
+                    }
+                })
+                .show());
+        return row;
     }
 
     private String lessonMeta(Experience e) {
@@ -711,8 +736,10 @@ public class SettingsActivity extends AppCompatActivity {
                 : Experience.PATTERN.equals(e.layer) ? R.string.lesson_layer_pattern : R.string.lesson_layer_principle;
         int state = e.off ? R.string.lesson_state_off : e.active() ? R.string.lesson_state_active : R.string.lesson_state_candidate;
         String head = getString(layer) + (e.app.isEmpty() ? "" : " · " + e.app);
-        String meta = getString(R.string.lesson_meta, head, getString(state), e.seen);
-        return e.uses == 0 ? meta : getString(R.string.lesson_meta_used, meta, e.uses, e.successRate());
+        String meta = getString(R.string.lesson_meta, head, getString(state),
+                getResources().getQuantityString(R.plurals.lesson_seen, e.seen, e.seen));
+        return e.uses == 0 ? meta : getString(R.string.lesson_meta_used, meta,
+                getResources().getQuantityString(R.plurals.lesson_used, e.uses, e.uses), e.successRate());
     }
 
     private void confirmDeleteLesson(Experience e) {

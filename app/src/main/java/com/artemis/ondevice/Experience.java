@@ -47,7 +47,14 @@ final class Experience {
     }
 
     String promptLine() {
-        return (when.isEmpty() ? "" : "When " + when + ": ") + text;
+        return (when.isEmpty() ? "" : "When " + lowerFirst(when) + ": ") + text;
+    }
+
+    /** "The task asks..." reads "When the task asks...": lowercase a capital unless it starts an acronym. */
+    private static String lowerFirst(String s) {
+        if (s.startsWith("A ")) return "a" + s.substring(1);
+        if (s.length() < 2 || !Character.isUpperCase(s.charAt(0)) || !Character.isLowerCase(s.charAt(1))) return s;
+        return Character.toLowerCase(s.charAt(0)) + s.substring(1);
     }
 
     JSONObject toJson() throws Exception {

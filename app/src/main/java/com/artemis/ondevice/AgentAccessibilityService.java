@@ -74,7 +74,14 @@ public class AgentAccessibilityService extends AccessibilityService {
         boolean want = AppSettings.bubble(this);
         if (want && bubble == null) {
             FloatingBubble b = new FloatingBubble(this);
-            b.show();
+            try {
+                b.show();
+            } catch (android.view.WindowManager.BadTokenException e) {
+                // The service was unbound before this ran (it is turned off and on again quickly,
+                // e.g. after a reinstall); the next connection shows the bubble.
+                AppLog.w(AppLog.AGENT, "bubble not shown: the service is no longer connected");
+                return;
+            }
             bubble = b;
         } else if (!want && bubble != null) {
             bubble.remove();

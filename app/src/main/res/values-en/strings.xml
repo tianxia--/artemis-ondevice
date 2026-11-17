@@ -165,7 +165,8 @@
     <string name="skill_save_failed">Not saved: %s</string>
     <string name="section_skills">Skills</string>
     <string name="skills_empty">No skills yet. After a task succeeds, choose \"Save as skill\" in the run details menu.</string>
-    <string name="skill_meta">%1$d steps · used %2$d times · %3$d succeeded</string>
+    <string name="skill_meta">%1$s · %2$s · %3$d succeeded</string>
+    <plurals name="skill_steps"><item quantity="one">%d step</item><item quantity="other">%d steps</item></plurals>
     <string name="skill_rename">Rename</string>
     <string name="skill_name_hint">Skill name</string>
     <string name="confirm_delete_skill">Delete the skill \"%s\"?</string>
@@ -206,8 +207,11 @@
     <string name="lesson_state_active">In use</string>
     <string name="lesson_state_candidate">Candidate</string>
     <string name="lesson_state_off">Off</string>
-    <string name="lesson_meta">%1$s · %2$s · seen %3$d times</string>
-    <string name="lesson_meta_used">%1$s · used %2$d times, %3$d%% succeeded</string>
+    <string name="lesson_meta">%1$s · %2$s · %3$s</string>
+    <plurals name="lesson_seen"><item quantity="one">seen %d time</item><item quantity="other">seen %d times</item></plurals>
+    <plurals name="lesson_used"><item quantity="one">used %d time</item><item quantity="other">used %d times</item></plurals>
+    <string name="lessons_show_more">%d more (candidates or switched off)</string>
+    <string name="lesson_meta_used">%1$s · %2$s, %3$d%% succeeded</string>
     <string name="lesson_approve">Approve</string>
     <string name="lesson_unapprove">Remove approval</string>
     <string name="confirm_delete_lesson">Delete this lesson?</string>
