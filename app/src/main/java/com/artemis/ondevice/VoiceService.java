@@ -51,7 +51,8 @@ public class VoiceService extends Service implements Runnable {
     private volatile boolean running;
     // Second wake path (recognizerWake): a short burst of speech is recognized and compared by sound.
     private final java.util.ArrayDeque<float[]> wakePreRoll = new java.util.ArrayDeque<>();
-    private boolean wakeSpeech, wakeGaveUp;
+    private boolean wakeSpeech, wakeGaveUp, wakeMatched;
+    private int shownAttempts = -1;
     private int wakeChunks;
     private static final int WAKE_MAX_CHUNKS = 40; // 4 s: the wake word is short; longer talk is a conversation
 
@@ -64,6 +65,11 @@ public class VoiceService extends Service implements Runnable {
     private static final long HEARTBEAT_MS = 10 * 60_000;
     /** Set by {@link VoiceTestReceiver}: start a voice call as if the wake word was heard. */
     static volatile boolean callRequested;
+    /** Wake test (Settings): wanted on or off, and the last finished test's summary. */
+    static volatile boolean testWanted;
+    static volatile String lastTestSummary;
+    static volatile WakeTest lastTest;
+    private WakeTest test;
     private Thread worker;
     private AudioRecord mic;
 
@@ -155,18 +161,26 @@ public class VoiceService extends Service implements Runnable {
                 boolean requested = callRequested;
                 if (!requested) {
                     float[] samples = read();
-                    boolean heard = engine.wakeWord(samples);
-                    if (heard) {
-                        AppLog.i(AppLog.VOICE, "wake word heard by the spotter");
-                    } else if (engine.isReady() && recognizerWake(engine, samples)) {
-                        AppLog.i(AppLog.VOICE, "wake word heard by the recognizer (the spotter missed it)");
-                        heard = true;
-                    }
+                    long now = System.currentTimeMillis();
+                    updateTest(engine);
+                    boolean spotted = engine.wakeWord(samples);
+                    if (test != null && spotted) test.spotted(now);
+                    boolean recognized = !spotted || test != null
+                            ? engine.isReady() && recognizerWake(engine, samples) : false;
                     if (++reads >= CHECK_READS) selfCheck(engine);
-                    if (!heard) continue;
+                    if (test != null) {
+                        // Testing: count, beep, no call.
+                        test.tick(now);
+                        if (spotted || recognized) beep();
+                        continue;
+                    }
+                    if (spotted) AppLog.i(AppLog.VOICE, "wake word heard by the spotter");
+                    else if (recognized) AppLog.i(AppLog.VOICE, "wake word heard by the recognizer (the spotter missed it)");
+                    else continue;
                 }
                 callRequested = false;
                 wakes++;
+                wakeSpeech = false; // a call or offline exchange follows: the burst in progress is over
                 if (requested) AppLog.i(AppLog.VOICE, "call requested over adb");
                 if (!call(engine)) converse(engine);
                 restartMic();
@@ -365,21 +379,28 @@ public class VoiceService extends Service implements Runnable {
     private boolean recognizerWake(SpeechEngine engine, float[] samples) {
         boolean speech = engine.speaking(samples);
         String phrase = engine.wakeWord();
+        long now = System.currentTimeMillis();
         if (speech) {
             if (!wakeSpeech) {
                 wakeSpeech = true;
                 wakeGaveUp = false;
+                wakeMatched = false;
                 wakeChunks = 0;
                 engine.startUtterance();
                 for (float[] p : wakePreRoll) engine.feedUtterance(p);
                 wakePreRoll.clear();
+                if (test != null) test.speechStarted(now);
             }
-            if (wakeGaveUp) return false;
+            if (wakeGaveUp || wakeMatched) return false;
             engine.feedUtterance(samples);
             if (++wakeChunks >= WAKE_MAX_CHUNKS) wakeGaveUp = true;
             if (wakeChunks % 5 == 0 && WakeWord.soundsLike(this, engine.utteranceText(), phrase)) {
-                wakeSpeech = false;
-                return true;
+                wakeMatched = true;
+                if (test == null) {
+                    wakeSpeech = false;
+                    return true;
+                }
+                return true; // testing: counted when the speech ends
             }
             return false;
         }
@@ -387,13 +408,44 @@ public class VoiceService extends Service implements Runnable {
         if (wakePreRoll.size() > 3) wakePreRoll.poll();
         if (!wakeSpeech) return false;
         wakeSpeech = false;
-        if (wakeGaveUp) return false;
-        engine.feedUtterance(new float[SpeechEngine.SAMPLE_RATE * 3 / 10]); // flush the last syllable
-        String heard = engine.utteranceText();
-        if (WakeWord.soundsLike(this, heard, phrase)) return true;
-        // A short burst that was not the wake word: how close it came, never what was said.
-        AppLog.i(AppLog.VOICE, "speech " + wakeChunks * 100 + " ms, not the wake word: " + WakeWord.closeness(this, heard, phrase));
-        return false;
+        if (wakeMatched) {
+            if (test != null) test.speechEnded(now, true, true);
+            return false; // already reported when it matched
+        }
+        boolean matched = false, close = false;
+        if (!wakeGaveUp) {
+            engine.feedUtterance(new float[SpeechEngine.SAMPLE_RATE * 3 / 10]); // flush the last syllable
+            String heard = engine.utteranceText();
+            matched = WakeWord.soundsLike(this, heard, phrase);
+            if (!matched) {
+                // A short burst that was not the wake word: how close it came, never what was said.
+                close = WakeWord.bestMatch(this, heard, phrase) >= WakeWord.toneless(this, phrase).size() - 1;
+                AppLog.i(AppLog.VOICE, "speech " + wakeChunks * 100 + " ms, not the wake word: " + WakeWord.closeness(this, heard, phrase));
+            }
+        }
+        if (test != null) test.speechEnded(now, matched, close);
+        return matched;
+    }
+
+    /** Starts or stops the wake test when Settings asks to. */
+    private void updateTest(SpeechEngine engine) {
+        if (testWanted && test == null) {
+            test = new WakeTest();
+            AppLog.i(AppLog.VOICE, "wake test started");
+            status(getString(R.string.wake_test_running, 0, 0));
+        } else if (!testWanted && test != null) {
+            test.finish();
+            lastTestSummary = test.summary();
+            lastTest = test;
+            AppLog.i(AppLog.VOICE, "wake test result: " + lastTestSummary);
+            test = null;
+            status(getString(R.string.voice_waiting, engine.wakeWord()));
+            return;
+        }
+        if (test != null && test.attempts != shownAttempts) {
+            shownAttempts = test.attempts;
+            status(getString(R.string.wake_test_running, test.attempts, test.woken()));
+        }
     }
 
     /**

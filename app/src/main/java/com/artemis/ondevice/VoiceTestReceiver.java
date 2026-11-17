@@ -49,6 +49,10 @@ public class VoiceTestReceiver extends BroadcastReceiver {
                 }
                 setResultData(AgentService.start(ctx, task.trim()));
                 break;
+            case "waketest":
+                VoiceService.testWanted = "start".equals(intent.getStringExtra("text"));
+                if (!VoiceService.testWanted && VoiceService.lastTestSummary != null) setResultData(VoiceService.lastTestSummary);
+                break;
             case "cachetest":
                 CacheProbe.runAsync(ctx);
                 break;

@@ -181,6 +181,25 @@ public class SettingsActivity extends AppCompatActivity {
         high.setOnCheckedChangeListener((b, on) -> AppSettings.setWakeSensitivity(this,
                 on ? AppSettings.WAKE_HIGH : AppSettings.WAKE_NORMAL));
         findViewById(R.id.background_battery).setOnClickListener(v -> openBatterySettings());
+        com.google.android.material.button.MaterialButton wakeTest = findViewById(R.id.wake_test);
+        wakeTest.setText(VoiceService.testWanted ? R.string.wake_test_stop : R.string.wake_test_start);
+        wakeTest.setOnClickListener(v -> {
+            if (!VoiceService.canRun(this)) {
+                Toast.makeText(this, R.string.wake_test_needs_voice, Toast.LENGTH_LONG).show();
+                return;
+            }
+            boolean start = !VoiceService.testWanted;
+            VoiceService.lastTest = null;
+            VoiceService.testWanted = start;
+            AppLog.i(AppLog.SETTINGS, "wake test " + (start ? "start" : "stop") + " requested");
+            wakeTest.setText(start ? R.string.wake_test_stop : R.string.wake_test_start);
+            if (start) {
+                Toast.makeText(this, R.string.wake_test_started, Toast.LENGTH_LONG).show();
+            } else {
+                // The voice service settles the last attempt on its next read.
+                wakeTest.postDelayed(this::showWakeTestResult, 1_500);
+            }
+        });
         findViewById(R.id.background_startup).setOnClickListener(v -> openStartupSettings());
 
         findViewById(R.id.voiceprint_enroll).setOnClickListener(v -> {
@@ -201,6 +220,21 @@ public class SettingsActivity extends AppCompatActivity {
                 .setNegativeButton(R.string.cancel, null)
                 .show());
         renderVoiceprint();
+    }
+
+    private void showWakeTestResult() {
+        WakeTest t = VoiceService.lastTest;
+        if (t == null) {
+            Toast.makeText(this, R.string.wake_test_no_result, Toast.LENGTH_LONG).show();
+            return;
+        }
+        int rate = t.attempts == 0 ? 0 : Math.round(100f * t.woken() / t.attempts);
+        new MaterialAlertDialogBuilder(this)
+                .setTitle(getString(R.string.wake_test_result_title, rate))
+                .setMessage(getString(R.string.wake_test_result, t.attempts, t.woken(), t.bySpotter, t.byRecognizer,
+                        t.byBoth, t.missedClose + t.missedFar, t.missedClose, t.missedFar, t.spottedWithoutSpeech))
+                .setPositiveButton(android.R.string.ok, null)
+                .show();
     }
 
     /** Battery optimization makes the system stop voice wake-up in the background. */

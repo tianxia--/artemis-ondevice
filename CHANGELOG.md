@@ -19,6 +19,7 @@ All notable changes to this project are listed here. The format follows
 - `scripts/realtime-probe.py` tries a realtime voice endpoint from a Mac; `VoiceTestReceiver` drives voice calls over adb for testing without a microphone.
 
 - Every model call logs where its time went (connect, send, waiting for the service, read), the sizes, and cached and reasoning tokens when the service reports them ("n/a" when it does not, which is not the same as 0). `VoiceTestReceiver cachetest` measures whether the task model's service reuses a repeated prompt prefix.
+- Wake test (Settings, under voice wake-up): every burst of speech counts as an attempt; a wake-up only beeps, and stopping shows the wake rate and each attempt's outcome (by the spotter, the recognizer, both, missed by one syllable, or missed). Each attempt is also logged, never the words.
 - Logs for troubleshooting: every flow writes to a daily file kept 7 days (keys, addresses, e-mail and phone numbers masked; never what you said, task text or screen content), and Settings > Data > Export logs shares a zip with the logs, app and device info, settings and a summary of recent tasks. See docs/logging.md.
 
 - Voice wake-up checks itself every 30 s: when Android silences the microphone (another app records, or the service was restarted from the background) the notification says so instead of failing quietly, and the log records a heartbeat every 10 minutes. It also restarts with the accessibility service after the app was killed.

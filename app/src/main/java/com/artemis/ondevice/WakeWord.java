@@ -134,6 +134,12 @@ final class WakeWord {
      * "<syllables heard>/<closest number of matching syllables of the wake word>".
      */
     static String closeness(Context ctx, String heard, String phrase) {
+        return toneless(ctx, heard).size() + " syllables, best match " + bestMatch(ctx, heard, phrase) + "/"
+                + toneless(ctx, phrase).size();
+    }
+
+    /** Most wake word syllables found in place in the recognized speech. */
+    static int bestMatch(Context ctx, String heard, String phrase) {
         java.util.List<String> h = toneless(ctx, heard), w = toneless(ctx, phrase);
         int best = 0;
         for (int start = -w.size() + 1; start < h.size(); start++) {
@@ -144,7 +150,7 @@ final class WakeWord {
             }
             best = Math.max(best, same);
         }
-        return h.size() + " syllables, best match " + best + "/" + w.size();
+        return best;
     }
 
     static boolean soundsLike(Context ctx, String heard, String phrase) {

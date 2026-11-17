@@ -330,4 +330,12 @@
     <string name="background_hint">华为、荣耀：在「手机管家 > 应用启动管理」里把 Artemis 改为手动管理，并打开「允许后台活动」。其他品牌在应用信息里允许后台运行、关闭省电限制。</string>
     <string name="voice_call_not_you">没听出是你的声音，靠近一点再说一次（或在设置里重新录入声纹）</string>
     <string name="voice_loading">正在准备语音唤醒…</string>
+    <string name="wake_test_start">唤醒测试</string>
+    <string name="wake_test_stop">结束测试，看结果</string>
+    <string name="wake_test_started">测试开始：像平时一样喊唤醒词，每次之间停一下。唤醒时只会“嘀”一声，不接通电话。</string>
+    <string name="wake_test_needs_voice">先打开语音唤醒</string>
+    <string name="wake_test_running">唤醒测试：说了 %1$d 次，唤醒 %2$d 次</string>
+    <string name="wake_test_no_result">还没有结果，稍等一下再看</string>
+    <string name="wake_test_result_title">唤醒率 %1$d%%</string>
+    <string name="wake_test_result">说了 %1$d 次，唤醒 %2$d 次\n· 唤醒模型听到：%3$d\n· 语音识别听到：%4$d\n· 两个都听到：%5$d\n\n没唤醒 %6$d 次\n· 只差一个字：%7$d\n· 听起来不像：%8$d\n\n没检测到说话却被唤醒：%9$d 次</string>
 </resources>

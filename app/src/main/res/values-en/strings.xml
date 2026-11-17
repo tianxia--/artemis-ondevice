@@ -326,4 +326,12 @@
     <string name="background_hint">Huawei and Honor: in Phone Manager > App launch, set Artemis to manage manually and allow background activity. Other brands: allow background running and remove power limits in the app\'s info.</string>
     <string name="voice_call_not_you">That did not sound like you. Move closer and say it again (or record the voiceprint again in Settings).</string>
     <string name="voice_loading">Getting voice wake-up ready…</string>
+    <string name="wake_test_start">Wake test</string>
+    <string name="wake_test_stop">Stop the test and see results</string>
+    <string name="wake_test_started">Test started: say the wake word as usual, pausing between tries. A wake-up only beeps; no call starts.</string>
+    <string name="wake_test_needs_voice">Turn on voice wake-up first</string>
+    <string name="wake_test_running">Wake test: %1$d tries, %2$d woken</string>
+    <string name="wake_test_no_result">No result yet; try again in a moment</string>
+    <string name="wake_test_result_title">Wake rate %1$d%%</string>
+    <string name="wake_test_result">%1$d tries, %2$d woken\n· by the spotter: %3$d\n· by the recognizer: %4$d\n· by both: %5$d\n\n%6$d missed\n· one syllable off: %7$d\n· did not sound like it: %8$d\n\nWoken without detected speech: %9$d</string>
 </resources>
