@@ -147,7 +147,7 @@
 
     <!-- Voice control (VoiceService) -->
     <string name="setting_voice">Voice wake-up</string>
-    <string name="setting_voice_hint">Say \"你好阿特\" to wake it, then say the task (Mandarin only). Recognition runs offline on the phone; the microphone stays on while enabled.</string>
+    <string name="setting_voice_hint">Say the wake word (\"你好阿特\" by default, change it below) to wake it, then say the task (Mandarin only). Recognition runs offline on the phone; the microphone stays on while enabled.</string>
     <string name="voice_permission_denied">No microphone permission, so voice wake-up cannot be turned on</string>
     <string name="channel_voice">Voice wake-up</string>
     <string name="voice_title">Voice wake-up is on</string>
@@ -262,4 +262,54 @@
     <string name="usage_table_prices">Models without a price you entered are estimated from the LiteLLM price list (%s, USD).</string>
     <string name="price_table_found">Price list (LiteLLM, %1$s, per million tokens, with the price\'s source last): %2$s. For a model you host yourself this is only a third party\'s market price; enter your own above.</string>
     <string name="price_table_missing">Not in the price list: %s. Self-hosted or uncommon models need a price entered above.</string>
+    <!-- Realtime voice call -->
+    <string name="realtime_url">Realtime voice URL (optional)</string>
+    <string name="realtime_url_hint">Only for realtime voice models; usually wss://(the base URL\'s host)/api-ws/v1/realtime</string>
+    <string name="need_realtime_url">Enter the realtime voice URL for the realtime voice models</string>
+    <string name="model_kind_chat">Runs tasks (chat model)</string>
+    <string name="model_kind_realtime">Voice calls (realtime voice model)</string>
+    <string name="model_kind_realtime_chip">%1$s · voice</string>
+    <string name="fetch_models_failed">Could not fetch: %1$s\nSome services (subscription plans, for one) have no model list; add model names by hand below.</string>
+    <string name="test_realtime_ok">Realtime voice connected · %1$s · %2$d ms</string>
+    <string name="voice_model_label">Voice call model</string>
+    <string name="voice_model_offline">None (offline voice)</string>
+    <string name="voice_model_hint">With a realtime voice model, the wake word starts a voice call: talk back and forth, interrupt at any time, and confirm sensitive actions by voice. Online only during the call, billed by the chosen service; no audio is sent while nobody speaks, and it hangs up after 15 s of silence. Falls back to offline voice when it cannot connect.</string>
+    <string name="voice_call_connecting">Connecting the voice call…</string>
+    <string name="voice_call_talking">Voice call</string>
+    <string name="voice_call_task">Voice call · running the task</string>
+    <string name="voice_call_listening">Listening…</string>
+    <string name="voice_call_hearing">Hearing you…</string>
+    <string name="voice_call_thinking">Thinking…</string>
+    <string name="voice_call_speaking">Speaking</string>
+    <string name="voice_call_hang_up">Hang up</string>
+    <!-- Wake word and voiceprint -->
+    <string name="wake_word_label">Wake word</string>
+    <string name="wake_word_hint">%1$d to %2$d Chinese characters, ideally not an everyday phrase or another phone assistant\'s wake word. Press Done to save.</string>
+    <string name="wake_word_length">The wake word needs %1$d to %2$d Chinese characters</string>
+    <string name="wake_word_taken">That is another voice assistant\'s wake word; both would wake. Pick another.</string>
+    <string name="wake_word_no_models">The voice models are not packaged, so the wake word cannot be changed</string>
+    <string name="wake_word_bad_char">\"%1$s\" cannot be used in a wake word; pick another character</string>
+    <string name="wake_word_saved">Wake word changed to \"%1$s\"</string>
+    <string name="voiceprint_label">Voiceprint: only listen to you</string>
+    <string name="voiceprint_hint">Once recorded, voice calls ignore other people talking nearby. Read three sentences, 4 s each; the voiceprint stays on the phone and is never uploaded. Very short replies (\"好\", \"停\") are not checked.</string>
+    <string name="voiceprint_none">Not recorded</string>
+    <string name="voiceprint_on">Recorded: calls only listen to you</string>
+    <string name="voiceprint_enroll">Record voiceprint</string>
+    <string name="voiceprint_reenroll">Record again</string>
+    <string name="voiceprint_title">Record voiceprint</string>
+    <string name="voiceprint_read">Sentence %1$d of %2$d. Tap Start and read it at your normal volume:\n\n\"%3$s\"</string>
+    <string name="voiceprint_record">Start</string>
+    <string name="voiceprint_recording">Recording (%1$d s)…</string>
+    <string name="voiceprint_too_quiet">Didn\'t catch that. Move closer and read it again.</string>
+    <string name="voiceprint_failed">Recording failed: %1$s</string>
+    <string name="voiceprint_saved">Voiceprint saved</string>
+    <string name="voiceprint_no_model">The voiceprint model is not packaged (scripts/fetch-voice.sh)</string>
+    <string name="confirm_delete_voiceprint">Delete the voiceprint? Voice calls will then listen to everyone.</string>
+    <string-array name="voiceprint_sentences">
+        <item>今天天气不错，我想出去走一走</item>
+        <item>打开设置，帮我看看手机还有多少电</item>
+        <item>明天早上八点提醒我开会，别忘了</item>
+    </string-array>
+    <string name="setting_web_search">Voice calls may search the web</string>
+    <string name="setting_web_search_hint">Weather, news and other live information is answered by a search instead of opening apps. The search is provided by the voice call model\'s service and may cost extra; with it on, answers sometimes take over 10 s, so it is off by default. When off, the relevant app is opened instead.</string>
 </resources>

@@ -36,7 +36,11 @@ final class SpeechEngine {
     private final KeywordSpotter kws;
     private final OnlineRecognizer asr;
     private final OfflineTts tts;
+    /** Speaker embeddings for the voiceprint; null when the model is not packaged. */
+    private final com.k2fsa.sherpa.onnx.SpeakerEmbeddingExtractor speaker;
     private OnlineStream kwsStream;
+    /** The wake word in use and its keyword line ("" = the default from keywords.txt). */
+    private String wakeWord = WakeWord.DEFAULT, wakeLine = "";
     private OnlineStream asrStream;
     private final java.util.Map<String, float[]> cache = new java.util.HashMap<>();
 
@@ -44,6 +48,7 @@ final class SpeechEngine {
         kws = new KeywordSpotter(am, kwsConfig());
         asr = new OnlineRecognizer(am, asrConfig());
         tts = new OfflineTts(am, ttsConfig());
+        speaker = Voiceprint.available(am) ? Voiceprint.extractor(am) : null;
         kwsStream = kws.createStream("");
         asrStream = asr.createStream("");
     }
@@ -64,9 +69,11 @@ final class SpeechEngine {
         boolean hit = false;
         while (kws.isReady(kwsStream)) {
             kws.decode(kwsStream);
-            if (!kws.getResult(kwsStream).getKeyword().isEmpty()) {
+            String keyword = kws.getResult(kwsStream).getKeyword();
+            if (!keyword.isEmpty()) {
                 kws.reset(kwsStream);
-                hit = true;
+                // A custom wake word's stream still holds the default one: only the chosen one wakes.
+                if (keyword.equals(wakeWord)) hit = true;
             }
         }
         return hit;
@@ -75,7 +82,28 @@ final class SpeechEngine {
     /** Drops audio heard so far (e.g. our own voice while speaking). */
     void resetWakeWord() {
         kwsStream.release();
-        kwsStream = kws.createStream("");
+        kwsStream = kws.createStream(wakeLine);
+    }
+
+    /** Switches to another wake word; {@code line} is from {@link WakeWord#keywordLine}. */
+    void setWakeWord(String phrase, String line) {
+        wakeWord = phrase;
+        wakeLine = WakeWord.DEFAULT.equals(phrase) ? "" : line;
+        resetWakeWord();
+    }
+
+    String wakeWord() { return wakeWord; }
+
+    // ------------------------------------------------------------------ voiceprint
+
+    /**
+     * How much the speech sounds like the voiceprint (cosine, about -1..1); NaN when it cannot
+     * tell: no model, no voiceprint, or too little speech.
+     */
+    float voiceScore(float[] voiceprint, float[] samples) {
+        if (speaker == null || voiceprint == null || samples.length < Voiceprint.MIN_SECONDS * SAMPLE_RATE) return Float.NaN;
+        float[] e = Voiceprint.embed(speaker, samples);
+        return e == null ? Float.NaN : Voiceprint.cosine(voiceprint, e);
     }
 
     // ------------------------------------------------------------------ recognition
@@ -160,6 +188,7 @@ final class SpeechEngine {
         asrStream.release();
         kws.release();
         asr.release();
+        if (speaker != null) speaker.release();
         tts.release();
     }
 

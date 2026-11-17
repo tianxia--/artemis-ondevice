@@ -2,10 +2,14 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Network type for PhoneStatus ("wifi" / "mobile data"); granted at install, no prompt. -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <!-- Hands-free voice control (VoiceService): wake word and spoken tasks, recognized on the phone. -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- Voice calls: communication mode and loudspeaker routing for echo cancellation. -->
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- Keeps the CPU awake for the length of one run (AgentService). -->
@@ -100,6 +104,16 @@
             android:permission="android.permission.WRITE_SECURE_SETTINGS">
             <intent-filter>
                 <action android:name="com.artemis.ondevice.IMPORT_PROVIDER" />
+            </intent-filter>
+        </receiver>
+
+        <!-- Voice call test driver over adb (see VoiceTestReceiver); same guard as above. -->
+        <receiver
+            android:name=".VoiceTestReceiver"
+            android:exported="true"
+            android:permission="android.permission.WRITE_SECURE_SETTINGS">
+            <intent-filter>
+                <action android:name="com.artemis.ondevice.VOICE_TEST" />
             </intent-filter>
         </receiver>
 

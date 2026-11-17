@@ -151,7 +151,7 @@
 
     <!-- Voice control (VoiceService) -->
     <string name="setting_voice">语音唤醒</string>
-    <string name="setting_voice_hint">说“你好阿特”唤醒，然后说出任务。识别在手机上离线完成，开启后麦克风常开。</string>
+    <string name="setting_voice_hint">说唤醒词（默认「你好阿特」，下面可以改）唤醒，然后说出任务。识别在手机上离线完成，开启后麦克风常开。</string>
     <string name="voice_permission_denied">没有麦克风权限，无法开启语音唤醒</string>
     <string name="channel_voice">语音唤醒</string>
     <string name="voice_title">语音唤醒已开启</string>
@@ -266,4 +266,54 @@
     <string name="usage_table_prices">没有手动填价格的模型，按 LiteLLM 价格表（%s，美元）估算。</string>
     <string name="price_table_found">价格表（LiteLLM，%1$s，每百万 tokens，最后是价格来源）：%2$s。如果模型是你自己部署的，这只是第三方的市场价，可以在上面填你自己的价格。</string>
     <string name="price_table_missing">价格表里没有：%s。自己部署或不常见的模型需要在上面手动填价格。</string>
+    <!-- Realtime voice call -->
+    <string name="realtime_url">实时语音地址（可选）</string>
+    <string name="realtime_url_hint">只有实时语音模型需要，通常是 wss://（对话地址的域名）/api-ws/v1/realtime</string>
+    <string name="need_realtime_url">有实时语音模型时，要填实时语音地址</string>
+    <string name="model_kind_chat">执行任务（对话模型）</string>
+    <string name="model_kind_realtime">语音通话（实时语音模型）</string>
+    <string name="model_kind_realtime_chip">%1$s · 语音</string>
+    <string name="fetch_models_failed">获取失败：%1$s\n有的服务（比如订阅套餐）不提供模型列表，可以在下面手动添加模型名。</string>
+    <string name="test_realtime_ok">实时语音连接正常 · %1$s · %2$d ms</string>
+    <string name="voice_model_label">语音通话模型</string>
+    <string name="voice_model_offline">不用（离线语音）</string>
+    <string name="voice_model_hint">选了实时语音模型后，喊唤醒词会接通语音通话：可以连续对话、随时打断，敏感操作用说的来确认。只在通话中联网，按所选服务计费；没人说话时不发送声音，15 秒没人说话自动挂断。连不上时改用离线语音。</string>
+    <string name="voice_call_connecting">正在接通语音…</string>
+    <string name="voice_call_talking">语音通话中</string>
+    <string name="voice_call_task">语音通话中 · 正在执行任务</string>
+    <string name="voice_call_listening">在听…</string>
+    <string name="voice_call_hearing">你在说…</string>
+    <string name="voice_call_thinking">想一想…</string>
+    <string name="voice_call_speaking">在说话</string>
+    <string name="voice_call_hang_up">挂断</string>
+    <!-- Wake word and voiceprint -->
+    <string name="wake_word_label">唤醒词</string>
+    <string name="wake_word_hint">%1$d 到 %2$d 个汉字，最好不是日常常说的话，也不要和手机自带助手的唤醒词一样。输入后按完成保存。</string>
+    <string name="wake_word_length">唤醒词要 %1$d 到 %2$d 个汉字</string>
+    <string name="wake_word_taken">这是其他语音助手的唤醒词，会同时唤醒两个助手，换一个吧</string>
+    <string name="wake_word_no_models">语音模型没有打包，没法设置唤醒词</string>
+    <string name="wake_word_bad_char">「%1$s」没法用在唤醒词里，换一个字吧</string>
+    <string name="wake_word_saved">唤醒词改成了「%1$s」</string>
+    <string name="voiceprint_label">声纹：只听你的声音</string>
+    <string name="voiceprint_hint">录入后，语音通话会忽略旁边其他人说的话。读三句话，每句 4 秒；声纹只保存在手机上，不会上传。很短的话（比如「好」「停」）不做判断。</string>
+    <string name="voiceprint_none">还没有录入</string>
+    <string name="voiceprint_on">已录入，通话中只听你的声音</string>
+    <string name="voiceprint_enroll">录入声纹</string>
+    <string name="voiceprint_reenroll">重新录入</string>
+    <string name="voiceprint_title">录入声纹</string>
+    <string name="voiceprint_read">第 %1$d / %2$d 句。点「开始录音」后，用平常说话的音量读：\n\n「%3$s」</string>
+    <string name="voiceprint_record">开始录音</string>
+    <string name="voiceprint_recording">正在录音（%1$d 秒）…</string>
+    <string name="voiceprint_too_quiet">没听清，靠近一点再读一遍。</string>
+    <string name="voiceprint_failed">录音失败：%1$s</string>
+    <string name="voiceprint_saved">声纹已保存</string>
+    <string name="voiceprint_no_model">声纹模型没有打包（scripts/fetch-voice.sh）</string>
+    <string name="confirm_delete_voiceprint">删除声纹？删除后语音通话会听所有人的声音。</string>
+    <string-array name="voiceprint_sentences">
+        <item>今天天气不错，我想出去走一走</item>
+        <item>打开设置，帮我看看手机还有多少电</item>
+        <item>明天早上八点提醒我开会，别忘了</item>
+    </string-array>
+    <string name="setting_web_search">语音通话可以联网搜索</string>
+    <string name="setting_web_search_hint">天气、新闻这类实时信息直接搜索回答，不用打开应用。搜索由语音通话模型的服务提供，可能会额外计费；开启后有时要等十几秒才回答，所以默认关闭。关闭时会改为打开相关应用去查。</string>
 </resources>

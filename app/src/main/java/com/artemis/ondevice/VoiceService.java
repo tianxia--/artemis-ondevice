@@ -24,6 +24,9 @@ import android.util.Log;
  * run it through {@link AgentService}, then speak the result. Half duplex: the microphone is
  * not listened to while speaking, and is released while a run is in progress.
  *
+ * With a realtime voice model chosen in Settings, the wake word opens a {@link VoiceCall}
+ * instead (full duplex, online); when it cannot connect, this offline flow takes over.
+ *
  * Audio stays in memory; logcat gets state changes only, never what was said.
  */
 public class VoiceService extends Service implements Runnable {
@@ -31,7 +34,6 @@ public class VoiceService extends Service implements Runnable {
     private static final String ACTION_STOP = "com.artemis.ondevice.VOICE_STOP";
     private static final String CHANNEL_ID = "artemis_voice";
     private static final int NOTIFICATION_ID = 18892;
-    static final String WAKE_WORD = "你好阿特";
     /** 100 ms of 16 kHz audio per read. */
     private static final int CHUNK = SpeechEngine.SAMPLE_RATE / 10;
     private static final long MAX_UTTERANCE_MS = 20_000;
@@ -39,8 +41,11 @@ public class VoiceService extends Service implements Runnable {
     private static final String PROMPT = "我在呢，要我做什么？";
     private static final String OK = "好的。";
     private static final String CANCELLED = "好，不做了。";
+    private static final String CALL_FAILED = "实时语音连不上，先用离线语音。";
 
     private volatile boolean running;
+    /** Set by {@link VoiceTestReceiver}: start a voice call as if the wake word was heard. */
+    static volatile boolean callRequested;
     private Thread worker;
     private AudioRecord mic;
 
@@ -66,7 +71,7 @@ public class VoiceService extends Service implements Runnable {
         }
         getSystemService(NotificationManager.class).createNotificationChannel(new NotificationChannel(
                 CHANNEL_ID, getString(R.string.channel_voice), NotificationManager.IMPORTANCE_LOW));
-        startForeground(NOTIFICATION_ID, notification(getString(R.string.voice_waiting, WAKE_WORD)),
+        startForeground(NOTIFICATION_ID, notification(getString(R.string.voice_waiting, AppSettings.wakeWord(this))),
                 ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE);
         if (!canRun(this)) {
             shutdown();
@@ -105,18 +110,22 @@ public class VoiceService extends Service implements Runnable {
         try {
             long t0 = System.currentTimeMillis();
             engine = SpeechEngine.load(getAssets());
-            engine.prepare(PROMPT, OK, CANCELLED, getString(R.string.blocked_app));
+            engine.prepare(PROMPT, OK, CANCELLED, CALL_FAILED, getString(R.string.blocked_app));
             Log.i(AgentService.TAG, "voice models loaded in " + (System.currentTimeMillis() - t0) + " ms");
             mic = new AudioRecord(MediaRecorder.AudioSource.VOICE_RECOGNITION, SpeechEngine.SAMPLE_RATE,
                     AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, CHUNK * 2 * 4);
             mic.startRecording();
+            applyWakeWord(engine);
             while (running) {
-                if (!engine.wakeWord(read())) continue;
-                Log.i(AgentService.TAG, "voice: wake word");
-                converse(engine);
+                applyWakeWord(engine);
+                boolean requested = callRequested;
+                if (!requested && !engine.wakeWord(read())) continue;
+                callRequested = false;
+                Log.i(AgentService.TAG, requested ? "voice: call requested over adb" : "voice: wake word");
+                if (!call(engine)) converse(engine);
                 restartMic();
                 engine.resetWakeWord();
-                status(getString(R.string.voice_waiting, WAKE_WORD));
+                status(getString(R.string.voice_waiting, engine.wakeWord()));
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
@@ -129,6 +138,40 @@ public class VoiceService extends Service implements Runnable {
                 mic = null;
             }
             if (engine != null) engine.release();
+        }
+    }
+
+    /** Picks up a wake word changed in Settings (checked there; a bad one keeps the old). */
+    private void applyWakeWord(SpeechEngine engine) {
+        String phrase = AppSettings.wakeWord(this);
+        if (phrase.equals(engine.wakeWord())) return;
+        try {
+            engine.setWakeWord(phrase, WakeWord.keywordLine(this, phrase));
+            Log.i(AgentService.TAG, "voice: wake word changed (" + phrase.length() + " chars)");
+            status(getString(R.string.voice_waiting, phrase));
+        } catch (IllegalArgumentException e) {
+            Log.w(AgentService.TAG, "voice: wake word not usable, keeping the old one");
+            AppSettings.setWakeWord(this, engine.wakeWord());
+        }
+    }
+
+    /**
+     * A realtime voice call, when a realtime voice model is chosen. Returns false when there is
+     * none or it could not connect, so the offline flow handles this wake-up.
+     */
+    private boolean call(SpeechEngine engine) throws InterruptedException {
+        ProviderStore.Active voice = ProviderStore.getVoice(this);
+        if (voice == null) return false;
+        beep();
+        mic.stop(); // the call opens its own microphone, with echo cancellation
+        try {
+            new VoiceCall(this, engine, voice, this::status).run();
+            return true;
+        } catch (VoiceCall.Unavailable e) {
+            Log.w(AgentService.TAG, "voice call unavailable: " + e.getMessage());
+            restartMic();
+            say(engine, CALL_FAILED);
+            return false;
         }
     }
 
@@ -195,13 +238,13 @@ public class VoiceService extends Service implements Runnable {
     }
 
     /** A short yes ("确认", "好的", "是的"); a longer reply may carry a change and is not a plain yes. */
-    private static boolean isYes(String s) {
+    static boolean isYes(String s) {
         if (s.isEmpty() || s.length() > 6 || s.contains("不") || s.contains("别") || s.contains("取消")) return false;
         return s.matches(".*(对|是|好|确认|可以|行|嗯|没错|开始).*");
     }
 
     /** A plain no with nothing else ("不用", "取消", "算了"); "不对，是…" is a correction instead. */
-    private static boolean isNo(String s) {
+    static boolean isNo(String s) {
         return s.matches("^(不|不用|不要|不行|别|取消|算了|不做了)[了吧啊呀。，]*$");
     }
 

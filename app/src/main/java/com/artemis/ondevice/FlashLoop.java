@@ -362,7 +362,7 @@ final class FlashLoop {
         RunState.phase(RunState.Phase.WAITING_USER);
         int pick = UserPrompt.ask(a11y, ctx.getString(R.string.confirm_title), what, java.util.Arrays.asList(
                 ctx.getString(R.string.confirm_allow), ctx.getString(R.string.confirm_allow_all),
-                ctx.getString(R.string.confirm_deny)), stop);
+                ctx.getString(R.string.confirm_deny)), true, stop);
         RunState.phase(before);
         Log.i(AgentService.TAG, call.name + ": confirmation " + (pick == 0 ? "allowed" : pick == 1 ? "allowed for the task"
                 : pick == 2 ? "declined" : "unanswered"));
@@ -397,7 +397,7 @@ final class FlashLoop {
         shown.add(ctx.getString(R.string.ask_stop));
         RunState.Phase before = RunState.phase();
         RunState.phase(RunState.Phase.WAITING_USER);
-        int pick = UserPrompt.ask(a11y, ctx.getString(R.string.ask_title), question, shown, stop);
+        int pick = UserPrompt.ask(a11y, ctx.getString(R.string.ask_title), question, shown, false, stop);
         RunState.phase(before);
         if (pick == options.size()) {
             AgentService.stop(ctx);
@@ -530,6 +530,13 @@ final class FlashLoop {
                 + "write one short paragraph of connected prose reflecting those three phases; it is kept in the execution history.\n"
                 + "- Turn 1 only: briefly decompose the objective into its parts and record them with `update_memory` "
                 + "(the first part under `next`).\n\n"
+                + "# 1b. ANSWER DIRECTLY WHEN YOU CAN\n"
+                + "Each turn shows PHONE STATUS, read straight from the system: time, date, weekday, battery, network, "
+                + "Wi-Fi/Bluetooth/airplane on or off, ringer, do not disturb, volume, brightness, screen timeout, storage, "
+                + "device model and Android version. If the objective only asks for something PHONE STATUS answers (or "
+                + "plain knowledge or arithmetic), call `finish` at once with the answer and do not open any app. Only use "
+                + "the phone's apps when the objective needs something done in an app, needs information only an app shows, "
+                + "or explicitly asks to open or use an app (e.g. \"打开时钟看看几点\"): then do it in that app.\n\n"
                 + "# 2. DYNAMIC ENVIRONMENT\n"
                 + "The device keeps changing while you think (1-5 s turn latency). If the screen progressed further than "
                 + "expected, adapt instead of treating it as an error. For loading spinners or transitions, use `wait`.\n\n"
@@ -607,6 +614,7 @@ final class FlashLoop {
             sb.append('\n');
         }
         if (notice != null) sb.append(notice).append("\n\n");
+        sb.append("# PHONE STATUS\n").append(PhoneStatus.line(ctx)).append("\n\n");
         sb.append("# CURRENT OBSERVATION [").append(clock(System.currentTimeMillis())).append("] (step ").append(step);
         if (run.maxSteps > 0) sb.append(" of max ").append(run.maxSteps);
         sb.append(")\n");

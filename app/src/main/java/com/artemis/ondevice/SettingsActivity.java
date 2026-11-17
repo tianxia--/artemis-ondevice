@@ -68,8 +68,9 @@ public class SettingsActivity extends AppCompatActivity {
                 .show());
 
         providerPicker.setOnItemClickListener((parent, view, position, id) -> {
-            ProviderStore.Provider p = providers.get(position);
-            String model = p.models.isEmpty() ? null : p.models.get(0).id;
+            ProviderStore.Provider p = chatProviders().get(position);
+            List<ProviderStore.ModelSpec> chat = p.models(false);
+            String model = chat.isEmpty() ? null : chat.get(0).id;
             setActive(p.id, model);
             render();
         });
@@ -106,8 +107,13 @@ public class SettingsActivity extends AppCompatActivity {
         });
 
         setupLanguage();
+        setupWakeWord();
         setupMcp();
         setupLessons();
+
+        MaterialSwitch search = findViewById(R.id.switch_web_search);
+        search.setChecked(AppSettings.webSearch(this));
+        search.setOnCheckedChangeListener((b, on) -> AppSettings.setWebSearch(this, on));
 
         MaterialSwitch confirm = findViewById(R.id.switch_confirm);
         confirm.setChecked(AppSettings.confirmSensitive(this));
@@ -136,6 +142,56 @@ public class SettingsActivity extends AppCompatActivity {
                 micPermission.launch(Manifest.permission.RECORD_AUDIO);
             }
         });
+    }
+
+    // ------------------------------------------------------------------ wake word and voiceprint
+
+    private void setupWakeWord() {
+        ((TextView) findViewById(R.id.wake_word_hint)).setText(getString(R.string.wake_word_hint,
+                WakeWord.MIN_CHARS, WakeWord.MAX_CHARS));
+        TextInputEditText word = findViewById(R.id.wake_word);
+        com.google.android.material.textfield.TextInputLayout layout = findViewById(R.id.wake_word_layout);
+        word.setText(AppSettings.wakeWord(this));
+        word.setOnEditorActionListener((v, actionId, event) -> {
+            if (actionId != android.view.inputmethod.EditorInfo.IME_ACTION_DONE) return false;
+            String phrase = String.valueOf(word.getText()).trim();
+            try {
+                WakeWord.keywordLine(this, phrase); // throws with a message when unusable
+                AppSettings.setWakeWord(this, phrase);
+                layout.setError(null);
+                Toast.makeText(this, getString(R.string.wake_word_saved, phrase), Toast.LENGTH_SHORT).show();
+            } catch (IllegalArgumentException e) {
+                layout.setError(e.getMessage());
+            }
+            return false; // let the keyboard close
+        });
+
+        findViewById(R.id.voiceprint_enroll).setOnClickListener(v -> {
+            if (!Voiceprint.available(getAssets())) {
+                Toast.makeText(this, R.string.voiceprint_no_model, Toast.LENGTH_LONG).show();
+            } else if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+                requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, 7);
+            } else {
+                VoiceprintDialog.show(this, this::renderVoiceprint);
+            }
+        });
+        findViewById(R.id.voiceprint_delete).setOnClickListener(v -> new MaterialAlertDialogBuilder(this)
+                .setMessage(R.string.confirm_delete_voiceprint)
+                .setPositiveButton(R.string.delete, (d, w) -> {
+                    Voiceprint.delete(this);
+                    renderVoiceprint();
+                })
+                .setNegativeButton(R.string.cancel, null)
+                .show());
+        renderVoiceprint();
+    }
+
+    private void renderVoiceprint() {
+        boolean on = Voiceprint.enrolled(this);
+        ((TextView) findViewById(R.id.voiceprint_state)).setText(on ? R.string.voiceprint_on : R.string.voiceprint_none);
+        ((com.google.android.material.button.MaterialButton) findViewById(R.id.voiceprint_enroll))
+                .setText(on ? R.string.voiceprint_reenroll : R.string.voiceprint_enroll);
+        findViewById(R.id.voiceprint_delete).setVisibility(on ? View.VISIBLE : View.GONE);
     }
 
     /** Language tags in picker order; "" follows the system language. */
@@ -181,12 +237,12 @@ public class SettingsActivity extends AppCompatActivity {
         ProviderStore.Active active = ProviderStore.getActive(this);
 
         List<String> names = new ArrayList<>();
-        for (ProviderStore.Provider p : providers) names.add(p.toString());
+        for (ProviderStore.Provider p : chatProviders()) names.add(p.toString());
         providerPicker.setSimpleItems(names.toArray(new String[0]));
         ProviderStore.Provider activeP = active == null ? null : ProviderStore.get(this, active.provider);
         providerPicker.setText(activeP == null ? "" : activeP.toString(), false);
         List<String> models = new ArrayList<>();
-        if (activeP != null) for (ProviderStore.ModelSpec m : activeP.models) models.add(m.id);
+        if (activeP != null) for (ProviderStore.ModelSpec m : activeP.models(false)) models.add(m.id);
         modelPicker.setSimpleItems(models.toArray(new String[0]));
         modelPicker.setText(active == null ? "" : active.model, false);
 
@@ -204,6 +260,7 @@ public class SettingsActivity extends AppCompatActivity {
             providerList.addView(row);
         }
 
+        renderVoiceModel();
         renderSkills();
         renderLessons();
         renderMcp();
@@ -211,6 +268,45 @@ public class SettingsActivity extends AppCompatActivity {
         boolean on = AgentAccessibilityService.get() != null;
         a11yState.setText(on ? R.string.perm_on : R.string.perm_off);
         a11yState.setTextColor(getColor(on ? R.color.success : R.color.danger));
+    }
+
+    /** Services that have at least one model that can run tasks. */
+    private List<ProviderStore.Provider> chatProviders() {
+        List<ProviderStore.Provider> out = new ArrayList<>();
+        for (ProviderStore.Provider p : providers) if (!p.models(false).isEmpty()) out.add(p);
+        return out;
+    }
+
+    // ------------------------------------------------------------------ voice call model
+
+    /** Realtime voice models of all services as "model · service", with "offline voice" first. */
+    private void renderVoiceModel() {
+        final List<String[]> choices = new ArrayList<>();
+        List<String> labels = new ArrayList<>();
+        choices.add(null);
+        labels.add(getString(R.string.voice_model_offline));
+        for (ProviderStore.Provider p : providers) {
+            for (ProviderStore.ModelSpec m : p.models(true)) {
+                choices.add(new String[]{p.id, m.id});
+                labels.add(m.id + " · " + (p.name.isEmpty() ? p.id : p.name));
+            }
+        }
+        ProviderStore.Active v = ProviderStore.getVoice(this);
+        int selected = 0;
+        for (int i = 1; i < choices.size(); i++) {
+            if (v != null && choices.get(i)[0].equals(v.provider) && choices.get(i)[1].equals(v.model)) selected = i;
+        }
+        MaterialAutoCompleteTextView picker = findViewById(R.id.voice_model);
+        picker.setSimpleItems(labels.toArray(new String[0]));
+        picker.setText(labels.get(selected), false);
+        picker.setOnItemClickListener((parent, view, position, id) -> {
+            String[] c = choices.get(position);
+            try {
+                ProviderStore.setVoice(this, c == null ? null : c[0], c == null ? null : c[1]);
+            } catch (Exception e) {
+                Toast.makeText(this, e.getMessage(), Toast.LENGTH_LONG).show();
+            }
+        });
     }
 
     // ------------------------------------------------------------------ skills

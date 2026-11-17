@@ -23,7 +23,8 @@ import java.util.concurrent.atomic.AtomicInteger;
  * A card at the bottom of the screen that asks the user something during a run: confirm a
  * sensitive action, or pick an answer the agent asked for. Drawn by the accessibility service
  * (no overlay permission needed). {@link #ask} blocks the loop thread until the user picks an
- * option, the run is stopped, or the time runs out.
+ * option, the run is stopped, or the time runs out. During a voice call the card is also read
+ * out, and what the user says can pick an option ({@link #pending()}).
  */
 final class UserPrompt {
 
@@ -32,12 +33,41 @@ final class UserPrompt {
 
     private UserPrompt() {}
 
+    /** The card on screen right now, so a voice call can read it out and answer it. */
+    static final class Pending {
+        final String message;
+        final List<String> options;
+        /** A sensitive-action confirmation (allow / allow for the task / don't allow), not a question. */
+        final boolean confirm;
+        private final AtomicInteger picked;
+        private final CountDownLatch answered;
+
+        private Pending(String message, List<String> options, boolean confirm, AtomicInteger picked, CountDownLatch answered) {
+            this.message = message;
+            this.options = options;
+            this.confirm = confirm;
+            this.picked = picked;
+            this.answered = answered;
+        }
+
+        /** Picks an option for the user, from what they said; ignored once the card is answered. */
+        void answer(int index) {
+            if (index < 0 || index >= options.size() || answered.getCount() == 0) return;
+            picked.set(index);
+            answered.countDown();
+        }
+    }
+
+    private static volatile Pending pending;
+
+    static Pending pending() { return pending; }
+
     /**
      * Shows the card and waits. Returns the index of the option picked, or {@link #NO_ANSWER}
      * when the run was stopped or nobody answered in time. Loop thread only.
      */
     static int ask(final AgentAccessibilityService s, final String title, final String message,
-                   final List<String> options, FlashLoop.StopSignal stop) throws InterruptedException {
+                   final List<String> options, boolean confirm, FlashLoop.StopSignal stop) throws InterruptedException {
         final Handler main = new Handler(Looper.getMainLooper());
         final WindowManager wm = s.getSystemService(WindowManager.class);
         final AtomicInteger picked = new AtomicInteger(NO_ANSWER);
@@ -45,17 +75,20 @@ final class UserPrompt {
         final View[] card = new View[1];
         main.post(() -> {
             card[0] = build(s, title, message, options, i -> {
+                if (answered.getCount() == 0) return;
                 picked.set(i);
                 answered.countDown();
             });
             wm.addView(card[0], params(s));
         });
+        pending = new Pending(message, options, confirm, picked, answered);
         try {
             long deadline = System.currentTimeMillis() + TIMEOUT_MS;
             while (!answered.await(200, TimeUnit.MILLISECONDS)) {
                 if (stop.stopped() || System.currentTimeMillis() > deadline) break;
             }
         } finally {
+            pending = null;
             final CountDownLatch removed = new CountDownLatch(1);
             main.post(() -> {
                 if (card[0] != null && card[0].isAttachedToWindow()) wm.removeView(card[0]);

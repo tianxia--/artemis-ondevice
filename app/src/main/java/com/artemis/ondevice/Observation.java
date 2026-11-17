@@ -62,6 +62,7 @@ final class Observation {
         final CountDownLatch latch = new CountDownLatch(1);
         // The floating bubble must not appear in what the model sees.
         FloatingBubble bubble = screenshot ? service.bubble() : null;
+        if (screenshot) VoiceCallPanel.hideForCapture(); // the voice call pill too
         if (bubble != null) bubble.hideForCapture();
         if (screenshot) requestShot(service, bmp, err, latch, true);
 
@@ -84,6 +85,7 @@ final class Observation {
             Thread.currentThread().interrupt();
         } finally {
             if (bubble != null) bubble.showAfterCapture();
+            VoiceCallPanel.showAfterCapture();
         }
         Bitmap b = bmp.get();
         if (b != null) {

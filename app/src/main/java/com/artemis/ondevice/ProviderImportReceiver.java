@@ -11,7 +11,11 @@ import android.util.Log;
  * <pre>
  * adb shell am broadcast -a com.artemis.ondevice.IMPORT_PROVIDER -n com.artemis.ondevice/.ProviderImportReceiver \
  *   --es id my-llm --es name "My LLM" --es base_url https://example.com/v1 --es api openai-completions \
- *   --es models "model-a,model-b" --es active_model model-a [--es api_key ...]
+ *   --es models "model-a,model-b" --es active_model model-a [--es api_key ...] \
+ *   [--es realtime_url wss://example.com/realtime --es voice_model model-realtime]
+ * </pre>
+ * Models named "*realtime*" are realtime voice models; voice_model picks one for voice calls.
+ * <pre>
  * </pre>
  *
  * Guarded by WRITE_SECURE_SETTINGS in the manifest, so only adb shell / system can send it.
@@ -26,17 +30,23 @@ public class ProviderImportReceiver extends BroadcastReceiver {
             p.id = ProviderStore.normalizeId(intent.getStringExtra("id"));
             p.name = nz(intent.getStringExtra("name"));
             p.baseUrl = ProviderStore.normalizeBaseUrl(intent.getStringExtra("base_url"));
+            p.realtimeUrl = ProviderStore.normalizeRealtimeUrl(intent.getStringExtra("realtime_url"));
             String api = intent.getStringExtra("api");
             p.api = api == null || api.isEmpty() ? ProviderStore.API_OPENAI : api;
             if (!p.api.equals(ProviderStore.API_OPENAI) && !p.api.equals(ProviderStore.API_ANTHROPIC)) {
                 throw new IllegalArgumentException("api must be openai-completions or anthropic-messages");
             }
             for (String m : nz(intent.getStringExtra("models")).split(",")) {
-                if (!m.trim().isEmpty()) p.models.add(new ProviderStore.ModelSpec(m.trim()));
+                if (m.trim().isEmpty()) continue;
+                ProviderStore.ModelSpec spec = new ProviderStore.ModelSpec(m.trim());
+                spec.kind = ProviderStore.ModelSpec.guessKind(spec.id);
+                p.models.add(spec);
             }
             ProviderStore.upsert(ctx, p, intent.getStringExtra("api_key"));
             String active = intent.getStringExtra("active_model");
             if (active != null && !active.isEmpty()) ProviderStore.setActive(ctx, p.id, active);
+            String voice = intent.getStringExtra("voice_model");
+            if (voice != null && !voice.isEmpty()) ProviderStore.setVoice(ctx, p.id, voice);
             Log.i(AgentService.TAG, "Imported provider " + p.id + " (" + p.models.size() + " models)");
             setResultCode(1);
         } catch (Exception e) {

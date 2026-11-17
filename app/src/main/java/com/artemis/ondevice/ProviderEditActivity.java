@@ -44,7 +44,7 @@ public class ProviderEditActivity extends AppCompatActivity {
     private ProviderStore.Provider existing;
     private final List<ProviderStore.ModelSpec> models = new ArrayList<>();
 
-    private TextInputEditText id, name, url, key, modelInput, priceIn, priceOut, currency;
+    private TextInputEditText id, name, url, realtimeUrl, key, modelInput, priceIn, priceOut, currency;
     private MaterialAutoCompleteTextView api;
     private ChipGroup modelChips;
     private TextView testResult;
@@ -66,6 +66,7 @@ public class ProviderEditActivity extends AppCompatActivity {
         id = findViewById(R.id.provider_id);
         name = findViewById(R.id.provider_name);
         url = findViewById(R.id.base_url);
+        realtimeUrl = findViewById(R.id.realtime_url);
         key = findViewById(R.id.api_key);
         api = findViewById(R.id.api_type);
         modelChips = findViewById(R.id.model_chips);
@@ -87,6 +88,7 @@ public class ProviderEditActivity extends AppCompatActivity {
             id.setEnabled(false);
             name.setText(existing.name);
             url.setText(existing.baseUrl);
+            realtimeUrl.setText(existing.realtimeUrl);
             api.setText(existing.api, false);
             models.addAll(existing.models);
             if (existing.priceIn > 0) priceIn.setText(plain(existing.priceIn));
@@ -142,6 +144,7 @@ public class ProviderEditActivity extends AppCompatActivity {
             id.setText(p.id);
             name.setText(p.name);
             url.setText(p.baseUrl);
+            realtimeUrl.setText(p.realtimeUrl);
             api.setText(p.api, false);
             models.clear();
             models.addAll(p.models);
@@ -155,7 +158,9 @@ public class ProviderEditActivity extends AppCompatActivity {
         String m = raw.trim();
         if (m.isEmpty()) return;
         for (ProviderStore.ModelSpec s : models) if (s.id.equals(m)) return;
-        models.add(new ProviderStore.ModelSpec(m));
+        ProviderStore.ModelSpec spec = new ProviderStore.ModelSpec(m);
+        spec.kind = ProviderStore.ModelSpec.guessKind(m);
+        models.add(spec);
         renderModels();
     }
 
@@ -183,8 +188,18 @@ public class ProviderEditActivity extends AppCompatActivity {
         modelChips.removeAllViews();
         for (final ProviderStore.ModelSpec m : models) {
             Chip c = new Chip(this);
-            c.setText(m.id);
+            c.setText(m.realtime() ? getString(R.string.model_kind_realtime_chip, m.id) : m.id);
             c.setCloseIconVisible(true);
+            // Tap: switch between a task model and a realtime voice model.
+            c.setOnClickListener(v -> new MaterialAlertDialogBuilder(this)
+                    .setTitle(m.id)
+                    .setSingleChoiceItems(new CharSequence[]{getString(R.string.model_kind_chat),
+                            getString(R.string.model_kind_realtime)}, m.realtime() ? 1 : 0, (d, which) -> {
+                        m.kind = which == 1 ? ProviderStore.ModelSpec.KIND_REALTIME : ProviderStore.ModelSpec.KIND_CHAT;
+                        d.dismiss();
+                        renderModels();
+                    })
+                    .show());
             c.setOnCloseIconClickListener(v -> {
                 models.remove(m);
                 renderModels();
@@ -201,6 +216,7 @@ public class ProviderEditActivity extends AppCompatActivity {
         p.id = ProviderStore.normalizeId(String.valueOf(id.getText()));
         p.name = String.valueOf(name.getText()).trim();
         p.baseUrl = ProviderStore.normalizeBaseUrl(String.valueOf(url.getText()));
+        p.realtimeUrl = ProviderStore.normalizeRealtimeUrl(String.valueOf(realtimeUrl.getText()));
         p.api = String.valueOf(api.getText());
         p.models = new ArrayList<>(models);
         p.priceIn = number(priceIn);
@@ -236,10 +252,22 @@ public class ProviderEditActivity extends AppCompatActivity {
                 Toast.makeText(this, R.string.need_model, Toast.LENGTH_SHORT).show();
                 return;
             }
+            if (!p.models(true).isEmpty() && p.realtimeUrl.isEmpty()) {
+                Toast.makeText(this, R.string.need_realtime_url, Toast.LENGTH_LONG).show();
+                return;
+            }
             ProviderStore.upsert(this, p, String.valueOf(key.getText()));
+            List<ProviderStore.ModelSpec> chat = p.models(false);
             ProviderStore.Active a = ProviderStore.getActive(this);
-            if (a == null || (a.provider.equals(p.id) && p.model(a.model) == null)) {
-                ProviderStore.setActive(this, p.id, p.models.get(0).id);
+            if (!chat.isEmpty() && (a == null || (a.provider.equals(p.id) && !chat.contains(p.model(a.model))))) {
+                ProviderStore.setActive(this, p.id, chat.get(0).id);
+            } else if (chat.isEmpty() && a != null && a.provider.equals(p.id)) {
+                ProviderStore.setActive(this, null, null);
+            }
+            List<ProviderStore.ModelSpec> voice = p.models(true);
+            ProviderStore.Active v = ProviderStore.getVoice(this);
+            if (v != null && v.provider.equals(p.id) && !voice.contains(p.model(v.model))) {
+                ProviderStore.setVoice(this, null, null); // that voice model was removed or changed kind
             }
             finish();
         } catch (Exception e) {
@@ -294,7 +322,8 @@ public class ProviderEditActivity extends AppCompatActivity {
                 ids = new ChatClient(p, keyFor(p)).fetchModels();
                 msg = getString(R.string.fetched_models, ids.size());
             } catch (Exception e) {
-                msg = getString(R.string.test_failed, e.getMessage());
+                // Some services (subscription plans among them) have no model list: say how to go on.
+                msg = getString(R.string.fetch_models_failed, e.getMessage());
             }
             final List<String> got = ids;
             final String out = msg;
@@ -321,7 +350,14 @@ public class ProviderEditActivity extends AppCompatActivity {
             Toast.makeText(this, R.string.need_model, Toast.LENGTH_SHORT).show();
             return;
         }
-        final String model = p.models.get(0).id;
+        // A task model if there is one; otherwise check the realtime voice connection.
+        List<ProviderStore.ModelSpec> chat = p.models(false);
+        final boolean realtime = chat.isEmpty();
+        final String model = realtime ? p.models.get(0).id : chat.get(0).id;
+        if (realtime && p.realtimeUrl.isEmpty()) {
+            Toast.makeText(this, R.string.need_realtime_url, Toast.LENGTH_LONG).show();
+            return;
+        }
         testResult.setVisibility(View.VISIBLE);
         testResult.setTextColor(getColor(R.color.text_secondary));
         testResult.setText(R.string.testing);
@@ -330,9 +366,13 @@ public class ProviderEditActivity extends AppCompatActivity {
             String msg;
             boolean ok;
             try {
-                ChatClient.Result r = new ChatClient(p, keyFor(p)).countAs(this, UsageStore.TEST).complete(model, "You are a connectivity probe.",
-                        "Reply with the single word: pong", null, null, 64);
-                msg = getString(R.string.test_ok, model, (int) r.latencyMs);
+                if (realtime) {
+                    msg = getString(R.string.test_realtime_ok, model, (int) VoiceCall.probe(p, model, keyFor(p)));
+                } else {
+                    ChatClient.Result r = new ChatClient(p, keyFor(p)).countAs(this, UsageStore.TEST).complete(model,
+                            "You are a connectivity probe.", "Reply with the single word: pong", null, null, 64);
+                    msg = getString(R.string.test_ok, model, (int) r.latencyMs);
+                }
                 ok = true;
             } catch (Exception e) {
                 msg = getString(R.string.test_failed, e.getMessage());

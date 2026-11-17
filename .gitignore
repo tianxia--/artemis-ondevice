@@ -9,3 +9,6 @@ captures/
 # Voice: fetched by scripts/fetch-voice.sh
 app/libs/
 app/src/main/assets/voice/
+
+# scripts/realtime-probe.py event log (transcripts of test calls)
+realtime-probe.log.jsonl

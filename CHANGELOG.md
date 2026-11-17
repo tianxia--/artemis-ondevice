@@ -6,6 +6,20 @@ All notable changes to this project are listed here. The format follows
 
 ## [Unreleased]
 
+### Added
+- Voice calls with a realtime voice model (Qwen-Audio realtime protocol): pick one as the voice call model in Settings and the wake word starts a call. What you say is recognized on the phone and sent as text; the reply streams back as speech. The model hands phone work to the agent, reads out confirmations and questions (your spoken answer is matched by the app, never decided by the model) and tells you the result. An on-screen panel shows a voice-reactive orb, live captions and a hang-up button.
+- During a call: several things in one sentence run as one task in order; adding to a task right after asking merges it, a correction shortly after it starts restarts it, and later requests queue. "停下" stops the task and "结束对话" hangs up, handled on the phone without waiting for the model.
+- Answer first, then use the phone: the agent and voice calls see the phone's state (time, battery, network, Wi-Fi/Bluetooth/airplane, ringer and do not disturb, volume, brightness, screen timeout, storage, device), so "几点了" or "还有多少电" is answered at once without opening an app. Apps are used when the task needs one or names one ("打开时钟看看几点").
+- Voice calls can optionally search the web for live information such as weather (Settings, off by default: with it on, the service sometimes took 17-30 s to answer).
+- Voice calls go to a connected Bluetooth hands-free (car) or headset, then a wired or USB headset, before the phone's loudspeaker; during a task the call shrinks to a small pill that moves with your voice and stays out of the agent's screenshots.
+- Custom wake word (Settings > Run): 3 to 6 Chinese characters, converted with a bundled hanzi-to-pinyin table (`scripts/make-pinyin-table.py`, from pypinyin).
+- Voiceprint (Settings > Run): read three sentences, and voice calls ignore other people talking nearby. Stored only on the phone (3D-Speaker CAM++ model, fetched by `scripts/fetch-voice.sh`).
+- Model services can hold realtime voice models: each model is a task model or a realtime voice model, and a service has an optional realtime voice URL. "Test connection" checks the realtime connection when a service has only voice models.
+- `scripts/realtime-probe.py` tries a realtime voice endpoint from a Mac; `VoiceTestReceiver` drives voice calls over adb for testing without a microphone.
+
+### Changed
+- When fetching the model list fails, the message says that model names can be added by hand (some subscription plans have no model list).
+
 ### Fixed
 - Confirmation summaries, questions and the final answer are written in the language of the task, so an English task no longer gets a Chinese confirmation or answer.
 

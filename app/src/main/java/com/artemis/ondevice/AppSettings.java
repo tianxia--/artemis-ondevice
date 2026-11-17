@@ -20,6 +20,8 @@ final class AppSettings {
     static final long DEFAULT_RUN_TOKENS = 300_000;
     static final long DEFAULT_DAY_TOKENS = 2_000_000;
     private static final String MCP_LAN = "mcp_lan";
+    private static final String WAKE_WORD = "wake_word";
+    private static final String WEB_SEARCH = "web_search";
 
     private AppSettings() {}
 
@@ -40,6 +42,17 @@ final class AppSettings {
     /** Hands-free voice control (VoiceService). Off by default: it keeps the microphone open. */
     static boolean voice(Context c) { return p(c).getBoolean(VOICE, false); }
     static void setVoice(Context c, boolean v) { p(c).edit().putBoolean(VOICE, v).apply(); }
+
+    /** The wake word, checked by {@link WakeWord#keywordLine} before it is saved. */
+    static String wakeWord(Context c) { return p(c).getString(WAKE_WORD, WakeWord.DEFAULT); }
+    static void setWakeWord(Context c, String v) { p(c).edit().putString(WAKE_WORD, v).apply(); }
+
+    /**
+     * Voice calls may search the web (weather, news). Off by default: with it on, Qwen-Audio realtime
+     * sometimes took 17-30 s before answering (also after tool results), and searches may cost extra.
+     */
+    static boolean webSearch(Context c) { return p(c).getBoolean(WEB_SEARCH, false); }
+    static void setWebSearch(Context c, boolean v) { p(c).edit().putBoolean(WEB_SEARCH, v).apply(); }
 
     /** Tokens one run may use before it is stopped; 0 = no limit. */
     static long runTokenLimit(Context c) { return p(c).getLong(RUN_TOKENS, DEFAULT_RUN_TOKENS); }

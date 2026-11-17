@@ -42,8 +42,14 @@ final class ProviderStore {
             "openrouter", "xai", "grok", "ollama", "vllm", "custom", "openai-codex", "claude-code"));
 
     static final class ModelSpec {
+        /** Runs tasks: text in, text and tool calls out (the default). */
+        static final String KIND_CHAT = "chat";
+        /** A realtime voice model reached over WebSocket ({@link Provider#realtimeUrl}). */
+        static final String KIND_REALTIME = "realtime";
+
         String id;
         String name = "";
+        String kind = KIND_CHAT;
         int contextWindow = 128000;
         int maxTokens = 8192;
         boolean reasoning = false;
@@ -54,7 +60,14 @@ final class ProviderStore {
         JSONObject toJson() throws Exception {
             return new JSONObject().put("id", id).put("name", name)
                     .put("context_window", contextWindow).put("max_tokens", maxTokens)
-                    .put("reasoning", reasoning).put("image", image);
+                    .put("reasoning", reasoning).put("image", image).put("kind", kind);
+        }
+
+        boolean realtime() { return KIND_REALTIME.equals(kind); }
+
+        /** The kind a new model probably is, from its name. */
+        static String guessKind(String id) {
+            return id.toLowerCase(java.util.Locale.ROOT).contains("realtime") ? KIND_REALTIME : KIND_CHAT;
         }
 
         static ModelSpec fromJson(JSONObject o) {
@@ -64,6 +77,7 @@ final class ProviderStore {
             m.maxTokens = o.optInt("max_tokens", 8192);
             m.reasoning = o.optBoolean("reasoning", false);
             m.image = o.optBoolean("image", false);
+            m.kind = KIND_REALTIME.equals(o.optString("kind")) ? KIND_REALTIME : KIND_CHAT;
             return m;
         }
 
@@ -74,6 +88,8 @@ final class ProviderStore {
         String id;
         String name = "";
         String baseUrl;
+        /** WebSocket address for realtime voice models (wss://…); empty when the service has none. */
+        String realtimeUrl = "";
         String api = API_OPENAI;
         List<ModelSpec> models = new ArrayList<>();
         /** Optional prices per million input / output tokens, set by the user (0 = unknown). */
@@ -87,7 +103,7 @@ final class ProviderStore {
             JSONArray ms = new JSONArray();
             for (ModelSpec m : models) ms.put(m.toJson());
             return new JSONObject().put("id", id).put("name", name).put("base_url", baseUrl)
-                    .put("api", api).put("models", ms)
+                    .put("api", api).put("models", ms).put("realtime_url", realtimeUrl)
                     .put("price_in", priceIn).put("price_out", priceOut).put("currency", currency);
         }
 
@@ -97,6 +113,7 @@ final class ProviderStore {
             p.name = o.optString("name", "");
             p.baseUrl = o.optString("base_url");
             p.api = o.optString("api", API_OPENAI);
+            p.realtimeUrl = o.optString("realtime_url", "");
             p.priceIn = o.optDouble("price_in", 0);
             p.priceOut = o.optDouble("price_out", 0);
             p.currency = o.optString("currency", "$");
@@ -110,6 +127,13 @@ final class ProviderStore {
         ModelSpec model(String modelId) {
             for (ModelSpec m : models) if (m.id.equals(modelId)) return m;
             return null;
+        }
+
+        /** Models of one kind, in the order the user added them. */
+        List<ModelSpec> models(boolean realtime) {
+            List<ModelSpec> out = new ArrayList<>();
+            for (ModelSpec m : models) if (m.realtime() == realtime) out.add(m);
+            return out;
         }
 
         @Override public String toString() {
@@ -185,6 +209,16 @@ final class ProviderStore {
         return id;
     }
 
+    /** Empty stays empty (no realtime voice); otherwise it must be a WebSocket address. */
+    static String normalizeRealtimeUrl(String raw) {
+        String url = raw == null ? "" : raw.trim();
+        while (url.endsWith("/")) url = url.substring(0, url.length() - 1);
+        if (!url.isEmpty() && !url.startsWith("wss://") && !url.startsWith("ws://")) {
+            throw new IllegalArgumentException("Realtime voice URL must start with wss:// or ws://");
+        }
+        return url;
+    }
+
     static String normalizeBaseUrl(String raw) {
         String url = raw == null ? "" : raw.trim();
         while (url.endsWith("/")) url = url.substring(0, url.length() - 1);
@@ -232,6 +266,8 @@ final class ProviderStore {
         data.put("providers", kept);
         Active a = getActive(ctx);
         if (a != null && a.provider.equals(id)) data.remove("active");
+        Active v = getVoice(ctx);
+        if (v != null && v.provider.equals(id)) data.remove("voice");
         save(ctx, data);
         SecretStore.delete(ctx, SecretStore.apiKeyRef(id));
     }
@@ -248,6 +284,23 @@ final class ProviderStore {
             data.remove("active");
         } else {
             data.put("active", new JSONObject().put("provider", provider).put("model", model));
+        }
+        save(ctx, data);
+    }
+
+    /** The realtime voice model for voice calls, or null to use the offline voice. */
+    static synchronized Active getVoice(Context ctx) {
+        JSONObject v = load(ctx).optJSONObject("voice");
+        if (v == null) return null;
+        return new Active(v.optString("provider"), v.optString("model"));
+    }
+
+    static synchronized void setVoice(Context ctx, String provider, String model) throws Exception {
+        JSONObject data = load(ctx);
+        if (provider == null || model == null || model.isEmpty()) {
+            data.remove("voice");
+        } else {
+            data.put("voice", new JSONObject().put("provider", provider).put("model", model));
         }
         save(ctx, data);
     }

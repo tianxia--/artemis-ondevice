@@ -63,4 +63,19 @@ if [ ! -f "$ASSETS/tts/tokens.txt" ]; then
   cp "$TMP/$T/tokens.txt" "$TMP/$T/lexicon.txt" "$TMP/$T/phone.fst" "$TMP/$T/date.fst" "$TMP/$T/number.fst" "$ASSETS/tts/"
 fi
 
+# Voice activity detection (Silero): during a realtime voice call it decides when the user
+# has finished a sentence.
+if [ ! -f "$ASSETS/vad/silero_vad.onnx" ]; then
+  mkdir -p "$ASSETS/vad"
+  fetch asr-models/silero_vad.onnx 9e2449e1087496d8d4caba907f23e0bd3f78d91fa552479bb9c23ac09cbb1fd6 "$ASSETS/vad/silero_vad.onnx"
+fi
+
+# Speaker verification (3D-Speaker CAM++, Chinese, Apache-2.0): with a voiceprint recorded in
+# Settings, voice calls ignore sentences spoken by other people nearby.
+if [ ! -f "$ASSETS/spk/model.onnx" ]; then
+  mkdir -p "$ASSETS/spk"
+  fetch speaker-recongition-models/3dspeaker_speech_campplus_sv_zh-cn_16k-common.onnx \
+    f682b514c05d947ee3fa91cd6ec6c5c7543479a128373fa29b1faedccd21fd11 "$ASSETS/spk/model.onnx"
+fi
+
 echo "voice library and models are in place"
