@@ -211,10 +211,25 @@ final class VoiceCall implements RealtimeSocket.Listener {
         show(VoiceCallPanel.State.CONNECTING);
         long t0 = System.currentTimeMillis();
         try {
-            openAudio(); // first, so speech right after the wake word is kept while connecting
-            connect(key);
+            // Connect while the audio devices open (they took ~0.7 s on a phone), not after.
+            final Unavailable[] failed = new Unavailable[1];
+            Thread connecting = new Thread(() -> {
+                try {
+                    connect(key);
+                } catch (Unavailable e) {
+                    failed[0] = e;
+                }
+            }, "artemis-voice-connect");
+            connecting.start();
+            try {
+                openAudio(); // speech right after the wake word is kept while connecting
+            } finally {
+                connecting.join();
+            }
+            if (failed[0] != null) throw failed[0];
         } catch (Unavailable e) {
             closeAudio();
+            if (socket != null) socket.close();
             if (panel != null) panel.close();
             throw e;
         }
@@ -1076,7 +1091,7 @@ final class VoiceCall implements RealtimeSocket.Listener {
         }
         taskBefore = String.valueOf(RunState.lastFinishedId());
         taskStartedAt = System.currentTimeMillis();
-        AgentService.start(ctx, task);
+        AgentService.start(ctx, task, false); // the result is spoken: stay where the task ended
         status.accept(ctx.getString(R.string.voice_call_task));
         return null;
     }

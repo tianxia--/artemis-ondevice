@@ -325,4 +325,5 @@
     <string name="background_startup">Background settings</string>
     <string name="background_hint">Huawei and Honor: in Phone Manager > App launch, set Artemis to manage manually and allow background activity. Other brands: allow background running and remove power limits in the app\'s info.</string>
     <string name="voice_call_not_you">That did not sound like you. Move closer and say it again (or record the voiceprint again in Settings).</string>
+    <string name="voice_loading">Getting voice wake-up ready…</string>
 </resources>

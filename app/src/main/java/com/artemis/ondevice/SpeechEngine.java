@@ -34,10 +34,14 @@ final class SpeechEngine {
     private static final String DIR = "voice/";
 
     private final KeywordSpotter kws;
-    private final OnlineRecognizer asr;
-    private final OfflineTts tts;
+    // Loaded after the wake word spotter, on another thread (loadRest): wake-up listens within a
+    // second instead of after all models (once 85 s on a throttled phone). Use only after awaitReady.
+    private OnlineRecognizer asr;
+    private OfflineTts tts;
+    private final java.util.concurrent.CountDownLatch rest = new java.util.concurrent.CountDownLatch(1);
+    private volatile Exception restError;
     /** Speaker embeddings for the voiceprint; null when the model is not packaged. */
-    private final com.k2fsa.sherpa.onnx.SpeakerEmbeddingExtractor speaker;
+    private com.k2fsa.sherpa.onnx.SpeakerEmbeddingExtractor speaker;
     private OnlineStream kwsStream;
     /** The wake word in use and its keyword line ("" = the default from keywords.txt). */
     private String wakeWord = WakeWord.DEFAULT, wakeLine = "";
@@ -47,16 +51,38 @@ final class SpeechEngine {
 
     private SpeechEngine(AssetManager am) {
         kws = new KeywordSpotter(am, kwsConfig());
-        asr = new OnlineRecognizer(am, asrConfig());
-        tts = new OfflineTts(am, ttsConfig());
-        speaker = Voiceprint.available(am) ? Voiceprint.extractor(am) : null;
         kwsStream = kws.createStream("");
-        asrStream = asr.createStream("");
+    }
+
+    /**
+     * Loads recognition, synthesis and the voiceprint model and renders the fixed phrases. Runs on
+     * its own thread while the wake word is already being listened for.
+     */
+    void loadRest(AssetManager am, String... phrases) {
+        try {
+            asr = new OnlineRecognizer(am, asrConfig());
+            asrStream = asr.createStream("");
+            tts = new OfflineTts(am, ttsConfig());
+            speaker = Voiceprint.available(am) ? Voiceprint.extractor(am) : null;
+            prepare(phrases);
+        } catch (Exception | Error e) {
+            restError = e instanceof Exception ? (Exception) e : new IllegalStateException(e);
+        } finally {
+            rest.countDown();
+        }
+    }
+
+    boolean isReady() { return rest.getCount() == 0 && restError == null; }
+
+    /** Waits until loadRest is done; throws if it failed. */
+    void awaitReady() throws Exception {
+        rest.await();
+        if (restError != null) throw restError;
     }
 
     /** Throws IOException when the models were not packaged (scripts/fetch-voice.sh not run). */
     static SpeechEngine load(AssetManager am) throws IOException {
-        for (String f : new String[]{"kws/keywords.txt", "asr/model.onnx", "tts/model.onnx"}) {
+        for (String f : new String[]{"kws/keywords.txt", "asr/model.onnx", "tts/model.onnx"}) { // all must be packaged
             am.open(DIR + f).close();
         }
         return new SpeechEngine(am);
@@ -193,12 +219,18 @@ final class SpeechEngine {
     }
 
     void release() {
+        try {
+            rest.await(); // the loader may still be using the models
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+        // Whatever loaded: a failed loadRest can leave some models null.
         kwsStream.release();
-        asrStream.release();
         kws.release();
-        asr.release();
+        if (asrStream != null) asrStream.release();
+        if (asr != null) asr.release();
         if (speaker != null) speaker.release();
-        tts.release();
+        if (tts != null) tts.release();
     }
 
     // ------------------------------------------------------------------ configs

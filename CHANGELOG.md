@@ -30,6 +30,9 @@ All notable changes to this project are listed here. The format follows
 - When fetching the model list fails, the message says that model names can be added by hand (some subscription plans have no model list).
 
 ### Fixed
+- Voice wake-up listens within a second of starting: the wake word model loads first and the others in the background (all at once took 10-25 s, once 85 s on a throttled phone, and wake words in that time were missed). The notification says it is getting ready until then.
+- Tasks started by voice stay on the screen where they ended instead of opening the app's result page; the result is spoken.
+- Voice calls connect while the audio devices open, not after (about 0.7 s sooner).
 - Voice calls: background voices nearby were sent as the user's sentences; one-character turns are ignored (except "停" and answers to a card on screen). The voiceprint is recorded through the same audio path as calls, its threshold is 0.30 (the user scored 0.52-0.64 on a phone, people nearby 0.03-0.23), it is re-checked once per second of speech instead of every 100 ms, and a rejected sentence says so on the panel.
 - Voice calls reconnect when the service does not confirm the session within 6 s (one setup took 80 s on 4G), keeping what was said.
 - The floating bubble, voice call panel, confirmation cards and notifications follow the language picked in the app instead of the system language.

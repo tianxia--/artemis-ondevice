@@ -29,6 +29,7 @@ public class AgentService extends Service implements RunState.Listener {
     static final String ACTION_STOP = "com.artemis.ondevice.STOP";
     static final String EXTRA_TASK = "task";
     static final String EXTRA_RUN_ID = "run_id";
+    static final String EXTRA_SHOW_RESULT = "show_result";
 
     private static final String CHANNEL_ID = "artemis_agent_run";
     private static final String DONE_CHANNEL_ID = "artemis_agent_done";
@@ -39,14 +40,23 @@ public class AgentService extends Service implements RunState.Listener {
     private static final double REVIEW_BUDGET_SHARE = 0.8;
 
     private volatile boolean stopRequested;
+    private volatile boolean showResult = true;
     private volatile ChatClient client;
     private Thread worker;
 
     /** Starts a run of the task and returns its id (ignored if a run is already going). */
     static String start(Context ctx, String task) {
+        return start(ctx, task, true);
+    }
+
+    /**
+     * Starts a run; {@code showResult} false leaves the phone on the screen where the task ended
+     * instead of opening the run details (voice calls speak the result).
+     */
+    static String start(Context ctx, String task, boolean showResult) {
         String id = RunRecord.newId();
         ctx.startForegroundService(new Intent(ctx, AgentService.class).setAction(ACTION_START)
-                .putExtra(EXTRA_TASK, task).putExtra(EXTRA_RUN_ID, id));
+                .putExtra(EXTRA_TASK, task).putExtra(EXTRA_RUN_ID, id).putExtra(EXTRA_SHOW_RESULT, showResult));
         return id;
     }
 
@@ -90,6 +100,7 @@ public class AgentService extends Service implements RunState.Listener {
                 return START_NOT_STICKY;
             }
             String id = intent.getStringExtra(EXTRA_RUN_ID);
+            showResult = intent.getBooleanExtra(EXTRA_SHOW_RESULT, true);
             begin(intent.getStringExtra(EXTRA_TASK), id == null ? RunRecord.newId() : id);
         }
         return START_NOT_STICKY;
@@ -159,7 +170,8 @@ public class AgentService extends Service implements RunState.Listener {
                     AppLog.i(AppLog.AGENT, "run " + run.id + " end: " + run.status + ", " + run.steps.size() + " steps, "
                             + run.durationMs() + " ms, tokens " + run.promptTokens() + "/" + run.completionTokens());
                     notifyDone(run);
-                    returnToApp(run);
+                    if (showResult) returnToApp(run);
+                    else AppLog.i(AppLog.AGENT, "run " + run.id + ": staying on the last screen (started by voice)");
                     afterRun(run, used);
                     finish();
                 }

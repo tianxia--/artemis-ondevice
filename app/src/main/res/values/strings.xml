@@ -329,4 +329,5 @@
     <string name="background_startup">后台运行设置</string>
     <string name="background_hint">华为、荣耀：在「手机管家 > 应用启动管理」里把 Artemis 改为手动管理，并打开「允许后台活动」。其他品牌在应用信息里允许后台运行、关闭省电限制。</string>
     <string name="voice_call_not_you">没听出是你的声音，靠近一点再说一次（或在设置里重新录入声纹）</string>
+    <string name="voice_loading">正在准备语音唤醒…</string>
 </resources>

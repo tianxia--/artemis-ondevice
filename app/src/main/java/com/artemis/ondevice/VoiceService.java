@@ -84,7 +84,7 @@ public class VoiceService extends Service implements Runnable {
         }
         getSystemService(NotificationManager.class).createNotificationChannel(new NotificationChannel(
                 CHANNEL_ID, getString(R.string.channel_voice), NotificationManager.IMPORTANCE_LOW));
-        startForeground(NOTIFICATION_ID, notification(getString(R.string.voice_waiting, AppSettings.wakeWord(this))),
+        startForeground(NOTIFICATION_ID, notification(getString(R.string.voice_loading)),
                 ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE);
         if (!canRun(this)) {
             AppLog.w(AppLog.VOICE, "service not started: voice wake-up " + (AppSettings.voice(this) ? "on" : "off")
@@ -128,12 +128,22 @@ public class VoiceService extends Service implements Runnable {
         try {
             long t0 = System.currentTimeMillis();
             engine = SpeechEngine.load(getAssets());
-            engine.prepare(PROMPT, OK, CANCELLED, CALL_FAILED, getString(R.string.blocked_app));
-            AppLog.i(AppLog.VOICE, "voice models loaded in " + (System.currentTimeMillis() - t0) + " ms");
+            AppLog.i(AppLog.VOICE, "wake word model loaded in " + (System.currentTimeMillis() - t0) + " ms");
+            final SpeechEngine e0 = engine;
+            final String blocked = getString(R.string.blocked_app);
+            Thread loader = new Thread(() -> {
+                android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_AUDIO);
+                long t1 = System.currentTimeMillis();
+                e0.loadRest(getAssets(), PROMPT, OK, CANCELLED, CALL_FAILED, blocked);
+                if (e0.isReady()) AppLog.i(AppLog.VOICE, "other voice models loaded in " + (System.currentTimeMillis() - t1) + " ms");
+                else AppLog.w(AppLog.VOICE, "voice models failed to load");
+            }, "artemis-voice-load");
+            loader.start();
             mic = new AudioRecord(MediaRecorder.AudioSource.VOICE_RECOGNITION, SpeechEngine.SAMPLE_RATE,
                     AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, CHUNK * 2 * 4);
             mic.startRecording();
             applyWakeWord(engine);
+            status(getString(R.string.voice_waiting, engine.wakeWord())); // listening from here on
             while (running) {
                 applyWakeWord(engine);
                 boolean requested = callRequested;
@@ -164,6 +174,22 @@ public class VoiceService extends Service implements Runnable {
         }
     }
 
+    /** Woken while recognition and synthesis are still loading (right after a start): wait for them. */
+    private void awaitModels(SpeechEngine engine) throws InterruptedException {
+        if (engine.isReady()) return;
+        AppLog.i(AppLog.VOICE, "woken before the other voice models were ready; waiting");
+        status(getString(R.string.voice_loading));
+        long t0 = System.currentTimeMillis();
+        try {
+            engine.awaitReady();
+        } catch (InterruptedException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new IllegalStateException("voice models failed to load: " + e.getMessage(), e);
+        }
+        AppLog.i(AppLog.VOICE, "waited " + (System.currentTimeMillis() - t0) + " ms for the voice models");
+    }
+
     /** Picks up a wake word changed in Settings (checked there; a bad one keeps the old). */
     private void applyWakeWord(SpeechEngine engine) {
         String phrase = AppSettings.wakeWord(this);
@@ -187,6 +213,7 @@ public class VoiceService extends Service implements Runnable {
         ProviderStore.Active voice = ProviderStore.getVoice(this);
         if (voice == null) return false;
         beep();
+        awaitModels(engine);
         mic.stop(); // the call opens its own microphone, with echo cancellation
         try {
             new VoiceCall(this, engine, voice, this::status).run();
@@ -206,6 +233,7 @@ public class VoiceService extends Service implements Runnable {
      */
     private void converse(SpeechEngine engine) throws InterruptedException {
         beep();
+        awaitModels(engine);
         status(getString(R.string.voice_listening));
         String heard = listen(engine);
         AppLog.i(AppLog.VOICE, "heard " + heard.length() + " chars");
@@ -284,7 +312,7 @@ public class VoiceService extends Service implements Runnable {
         mic.stop(); // release the microphone for the apps the agent drives
         status(getString(R.string.voice_running));
         String before = RunState.lastFinishedId();
-        AgentService.start(this, task);
+        AgentService.start(this, task, false); // the result is spoken: stay where the task ended
         while (running) {
             String last = RunState.lastFinishedId();
             if (last != null && !last.equals(before)) break;
