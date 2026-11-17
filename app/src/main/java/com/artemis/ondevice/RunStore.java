@@ -85,7 +85,7 @@ final class RunStore {
             if (live != null && live.id.equals(id) && live.isRunning()) return live;
             return RunRecord.fromJson(new JSONObject(new String(Files.readAllBytes(f.toPath()), StandardCharsets.UTF_8)));
         } catch (Exception e) {
-            android.util.Log.w(AgentService.TAG, "Unreadable run " + id + ": " + e.getMessage());
+            AppLog.w(AppLog.AGENT, "Unreadable run " + id + ": " + e.getMessage());
             return null;
         }
     }

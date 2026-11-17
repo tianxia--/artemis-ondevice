@@ -163,7 +163,7 @@ final class SpeechEngine {
                     @Override
                     public Integer invoke(float[] samples) {
                         if (written[0] == 0) {
-                            android.util.Log.i(AgentService.TAG, "voice: first audio after "
+                            AppLog.i(AppLog.VOICE, "first audio after "
                                     + (System.currentTimeMillis() - t0) + " ms");
                         }
                         track.write(samples, 0, samples.length, AudioTrack.WRITE_BLOCKING);

@@ -312,4 +312,7 @@
     </string-array>
     <string name="setting_web_search">Voice calls may search the web</string>
     <string name="setting_web_search_hint">Weather, news and other live information is answered by a search instead of opening apps. The search is provided by the voice call model\'s service and may cost extra; with it on, answers sometimes take over 10 s, so it is off by default. When off, the relevant app is opened instead.</string>
+    <string name="export_logs">Export logs</string>
+    <string name="export_logs_hint">Packs the last 7 days of logs for troubleshooting. Leaves out what you said, task text, screen content, keys and service addresses.</string>
+    <string name="export_logs_failed">Export failed: %1$s</string>
 </resources>

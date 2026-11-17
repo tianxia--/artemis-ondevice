@@ -12,7 +12,6 @@ import android.media.audiofx.AcousticEchoCanceler;
 import android.media.audiofx.NoiseSuppressor;
 import android.os.Build;
 import android.util.Base64;
-import android.util.Log;
 
 import com.k2fsa.sherpa.onnx.SileroVadModelConfig;
 import com.k2fsa.sherpa.onnx.Vad;
@@ -188,7 +187,7 @@ final class VoiceCall implements RealtimeSocket.Listener {
         if (key == null || key.isEmpty()) throw new Unavailable("no API key", null);
         status.accept(ctx.getString(R.string.voice_call_connecting));
         panel = VoiceCallPanel.show(() -> {
-            Log.i(AgentService.TAG, "voice call: hung up by the user");
+            AppLog.i(AppLog.CALL, "hung up by the user");
             ended = true;
         });
         show(VoiceCallPanel.State.CONNECTING);
@@ -201,7 +200,7 @@ final class VoiceCall implements RealtimeSocket.Listener {
             if (panel != null) panel.close();
             throw e;
         }
-        Log.i(AgentService.TAG, "voice call: connected in " + (System.currentTimeMillis() - t0) + " ms, "
+        AppLog.i(AppLog.CALL, "connected in " + (System.currentTimeMillis() - t0) + " ms, "
                 + (fullDuplex ? "full duplex (echo canceller on)" : "half duplex (no echo canceller)"));
         current = this;
         try {
@@ -213,7 +212,7 @@ final class VoiceCall implements RealtimeSocket.Listener {
             tools.shutdownNow();
             closeAudio();
             if (panel != null) panel.close();
-            Log.i(AgentService.TAG, String.format(Locale.ROOT, "voice call: ended, %d turns, received %.1f s of speech%s",
+            AppLog.i(AppLog.CALL, String.format(Locale.ROOT, "ended, %d turns, received %.1f s of speech%s",
                     turns, receivedSeconds, closeError == null ? "" : ", " + closeError.getMessage()));
         }
     }
@@ -317,7 +316,7 @@ final class VoiceCall implements RealtimeSocket.Listener {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         } catch (IOException e) {
-            if (!ended) Log.w(AgentService.TAG, "voice call: send failed: " + e.getMessage());
+            if (!ended) AppLog.w(AppLog.CALL, "send failed: " + e.getMessage());
         }
     }
 
@@ -334,7 +333,7 @@ final class VoiceCall implements RealtimeSocket.Listener {
                     .put("content", new JSONArray().put(new JSONObject().put("type", "input_text").put("text", text)))));
             if (respond) requestResponse();
         } catch (Exception e) {
-            Log.w(AgentService.TAG, "voice call: message not sent: " + e.getMessage());
+            AppLog.w(AppLog.CALL, "message not sent: " + e.getMessage());
         }
     }
 
@@ -400,7 +399,7 @@ final class VoiceCall implements RealtimeSocket.Listener {
                     else if (now - turnStart > MAX_UTTERANCE_MS) why = "too long";
                 }
                 if (why != null) {
-                    Log.i(AgentService.TAG, "voice call: turn ended over background sound (" + why + ")");
+                    AppLog.i(AppLog.CALL, "turn ended over background sound (" + why + ")");
                     speaking = false;
                     waitQuiet = true;
                     lastPeak = peak;
@@ -418,7 +417,7 @@ final class VoiceCall implements RealtimeSocket.Listener {
                         turnStart = now;
                         cutIn = false;
                         show(VoiceCallPanel.State.HEARING);
-                        Log.i(AgentService.TAG, "voice call: you started");
+                        AppLog.i(AppLog.CALL, "you started");
                         engine.startUtterance();
                         utterance.clear();
                         utteranceSamples = 0;
@@ -435,7 +434,7 @@ final class VoiceCall implements RealtimeSocket.Listener {
                     if (!cutIn && (now < playingUntil || responseActive) && !engine.utteranceText().isEmpty()
                             && isUser(false)) {
                         cutIn = true;
-                        Log.i(AgentService.TAG, "voice call: words over its reply: cancelling it");
+                        AppLog.i(AppLog.CALL, "words over its reply: cancelling it");
                         interruptReply();
                     }
                 } else if (speaking) {
@@ -454,7 +453,7 @@ final class VoiceCall implements RealtimeSocket.Listener {
                 heardSpeech = true;
                 lastActivity = now;
                 boolean over = now < playingUntil || responseActive;
-                Log.i(AgentService.TAG, "voice call: injected sentence" + (over ? " over its reply: cancelling it" : ""));
+                AppLog.i(AppLog.CALL, "injected sentence" + (over ? " over its reply: cancelling it" : ""));
                 if (over) interruptReply();
                 youStoppedAt = now;
                 handleTurn(typed);
@@ -469,7 +468,7 @@ final class VoiceCall implements RealtimeSocket.Listener {
             watchTask();
             updatePanel(now);
             if (responseActive && now - responseSeenAt > 30_000) {
-                Log.w(AgentService.TAG, "voice call: answer in progress went silent, releasing it");
+                AppLog.w(AppLog.CALL, "answer in progress went silent, releasing it");
                 responseEnded();
             }
             speakingNow = speaking;
@@ -486,7 +485,7 @@ final class VoiceCall implements RealtimeSocket.Listener {
                 });
             }
             if (hangUpAfterReply && !responseActive && now > playingUntil + 400) {
-                Log.i(AgentService.TAG, "voice call: the user said goodbye");
+                AppLog.i(AppLog.CALL, "the user said goodbye");
                 break;
             }
             // Waiting for an answer is not idle (a web search can take a while); the watchdog below bounds it.
@@ -512,7 +511,7 @@ final class VoiceCall implements RealtimeSocket.Listener {
         engine.feedUtterance(new float[IN_RATE * 3 / 10]); // trailing silence flushes the recognizer
         String said = engine.utteranceText();
         youStoppedAt = now;
-        Log.i(AgentService.TAG, "voice call: you stopped, " + said.length() + " chars recognized in "
+        AppLog.i(AppLog.CALL, "you stopped, " + said.length() + " chars recognized in "
                 + (System.currentTimeMillis() - now) + " ms");
         if (said.isEmpty()) {
             show(VoiceCallPanel.State.LISTENING);
@@ -548,7 +547,7 @@ final class VoiceCall implements RealtimeSocket.Listener {
         float score = engine.voiceScore(voiceprint, all);
         boolean user = Float.isNaN(score) || score >= Voiceprint.THRESHOLD;
         if (final_ || !user) {
-            Log.i(AgentService.TAG, String.format(Locale.ROOT, "voice call: voiceprint %.2f (%s) in %d ms",
+            AppLog.i(AppLog.CALL, String.format(Locale.ROOT, "voiceprint %.2f (%s) in %d ms",
                     score, user ? "you" : "someone else, ignored", System.currentTimeMillis() - t0));
         }
         return user;
@@ -565,7 +564,7 @@ final class VoiceCall implements RealtimeSocket.Listener {
         if (held != null && picked == null) {
             // The user went on talking before the task started: let the model fold it in.
             pendingTask = null;
-            Log.i(AgentService.TAG, "voice call: the user added to a task before it started");
+            AppLog.i(AppLog.CALL, "the user added to a task before it started");
             message(said + "\n" + NOTICE + "你刚才准备执行的任务「" + FlashLoop.clip(held, 80) + "」还没有开始，用户又说了上面这句。"
                     + "如果是补充或更正，把它合并进去，重新调用一次 run_phone_task（只调用一次，任务写完整）；"
                     + "如果和任务无关，就照常回答，并重新调用 run_phone_task 执行原来的任务。", true);
@@ -587,7 +586,7 @@ final class VoiceCall implements RealtimeSocket.Listener {
     private boolean goodbye(String said) {
         String s = said.trim().replaceAll("[。，！？,.!?\\s]+", "");
         if (!s.matches(".*(结束对话|结束通话|结束吧|挂断|挂了吧|挂了|再见|拜拜|没事了|就这样吧|就这样|不用了谢谢).*")) return false;
-        Log.i(AgentService.TAG, "voice call: goodbye heard");
+        AppLog.i(AppLog.CALL, "goodbye heard");
         hangUpAfterReply = true;
         interruptReply();
         boolean working = taskBefore != null || pendingTask != null || !queued.isEmpty();
@@ -616,7 +615,7 @@ final class VoiceCall implements RealtimeSocket.Listener {
             stoppedByVoice = true;
             AgentService.stop(ctx);
         }
-        Log.i(AgentService.TAG, "voice call: stopped by voice" + (dropped > 0 ? ", " + dropped + " queued dropped" : ""));
+        AppLog.i(AppLog.CALL, "stopped by voice" + (dropped > 0 ? ", " + dropped + " queued dropped" : ""));
         interruptReply();
         message(said + "\n" + NOTICE + "系统已按用户的话停止了正在做的任务" + (dropped > 0 ? "，并取消了排队的 " + dropped + " 个任务" : "")
                 + "。用一句话告诉用户已经停了，问还要做什么。", true);
@@ -638,7 +637,7 @@ final class VoiceCall implements RealtimeSocket.Listener {
             responseActive = true; // until response.created confirms it; blocks a second request meanwhile
             responseSeenAt = System.currentTimeMillis();
         }
-        Log.i(AgentService.TAG, "voice call: answer requested");
+        AppLog.i(AppLog.CALL, "answer requested");
         send(responseCreate());
     }
 
@@ -652,7 +651,7 @@ final class VoiceCall implements RealtimeSocket.Listener {
             responseSeenAt = System.currentTimeMillis();
         }
         if (next) {
-            Log.i(AgentService.TAG, "voice call: answer requested (queued)");
+            AppLog.i(AppLog.CALL, "answer requested (queued)");
             send(responseCreate());
         }
     }
@@ -671,7 +670,7 @@ final class VoiceCall implements RealtimeSocket.Listener {
     }
 
     void hangUp() {
-        Log.i(AgentService.TAG, "voice call: hung up over adb");
+        AppLog.i(AppLog.CALL, "hung up over adb");
         ended = true;
     }
 
@@ -727,7 +726,7 @@ final class VoiceCall implements RealtimeSocket.Listener {
             stoppedByVoice = false; // already said; the queue was cleared with it
             return;
         }
-        Log.i(AgentService.TAG, "voice call: task result handed to the model");
+        AppLog.i(AppLog.CALL, "task result handed to the model");
         String answer = r == null ? "" : FlashLoop.clip(r.answer, 300);
         String task = r == null ? "" : "「" + FlashLoop.clip(r.task, 60) + "」";
         final String next = queued.poll();
@@ -769,7 +768,7 @@ final class VoiceCall implements RealtimeSocket.Listener {
             } else if (type.equals("error")) {
                 extra = " " + FlashLoop.clip(text, 300);
             }
-            Log.i(AgentService.TAG, "voice call: event " + type + extra);
+            AppLog.i(AppLog.CALL, "event " + type + extra);
         }
         switch (type) {
             case "response.created":
@@ -778,7 +777,7 @@ final class VoiceCall implements RealtimeSocket.Listener {
                 synchronized (responseLock) {
                     responseActive = true;
                 }
-                Log.i(AgentService.TAG, "voice call: response created " + since(youStoppedAt) + " after you stopped");
+                AppLog.i(AppLog.CALL, "response created " + since(youStoppedAt) + " after you stopped");
                 synchronized (reply) {
                     reply.setLength(0);
                 }
@@ -794,7 +793,7 @@ final class VoiceCall implements RealtimeSocket.Listener {
                 if (dropAudio) break;
                 if (firstAudio) {
                     firstAudio = false;
-                    Log.i(AgentService.TAG, "voice call: first audio " + since(youStoppedAt) + " after you stopped");
+                    AppLog.i(AppLog.CALL, "first audio " + since(youStoppedAt) + " after you stopped");
                 }
                 byte[] pcm = Base64.decode(e.optString("delta"), Base64.DEFAULT);
                 float seconds = pcm.length / (2f * OUT_RATE);
@@ -811,12 +810,12 @@ final class VoiceCall implements RealtimeSocket.Listener {
             case "response.done":
                 responseEnded();
                 JSONObject done = e.optJSONObject("response");
-                Log.i(AgentService.TAG, "voice call: response " + (done == null ? "?" : done.optString("status")));
+                AppLog.i(AppLog.CALL, "response " + (done == null ? "?" : done.optString("status")));
                 recordUsage(done);
                 break;
             case "error":
                 JSONObject err = e.optJSONObject("error");
-                Log.w(AgentService.TAG, "voice call: server error " + (err == null ? text : err.optString("code") + " "
+                AppLog.w(AppLog.CALL, "server error " + (err == null ? text : err.optString("code") + " "
                         + FlashLoop.clip(err.optString("message"), 200)));
                 break;
             default:
@@ -839,7 +838,7 @@ final class VoiceCall implements RealtimeSocket.Listener {
         if (p == null) return null;
         String s = said.trim().replaceAll("[。，！？,.!?\\s]+$", "");
         int choice = choice(p, s);
-        Log.i(AgentService.TAG, "voice call: answer to the card " + (choice < 0 ? "unclear" : "-> option " + choice));
+        AppLog.i(AppLog.CALL, "answer to the card " + (choice < 0 ? "unclear" : "-> option " + choice));
         if (choice < 0) return null;
         p.answer(choice);
         return "系统已按用户的回答选择了「" + p.options.get(choice) + "」。";
@@ -873,7 +872,7 @@ final class VoiceCall implements RealtimeSocket.Listener {
         JSONObject out = new JSONObject();
         try {
             JSONObject args = arguments == null || arguments.isEmpty() ? new JSONObject() : new JSONObject(arguments);
-            Log.i(AgentService.TAG, "voice call: tool " + name);
+            AppLog.i(AppLog.CALL, "tool " + name);
             switch (name) {
                 case "run_phone_task":
                     runTask(args.optString("task").trim(), out);
@@ -908,7 +907,7 @@ final class VoiceCall implements RealtimeSocket.Listener {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         } catch (Exception e) {
-            Log.w(AgentService.TAG, "voice call: tool " + name + " failed: " + e.getMessage());
+            AppLog.w(AppLog.CALL, "tool " + name + " failed: " + e.getMessage());
         }
     }
 
@@ -930,7 +929,7 @@ final class VoiceCall implements RealtimeSocket.Listener {
         }
         if (taskBefore != null || RunState.isRunning() || !queued.isEmpty()) {
             queued.add(task);
-            Log.i(AgentService.TAG, "voice call: task queued, " + queued.size() + " waiting");
+            AppLog.i(AppLog.CALL, "task queued, " + queued.size() + " waiting");
             out.put("status", "queued").put("position", queued.size())
                     .put("message", "前面还有任务在做，这个排在第 " + queued.size() + " 个，轮到时自动开始；一句话告诉用户已排队");
             return;
@@ -956,7 +955,7 @@ final class VoiceCall implements RealtimeSocket.Listener {
             stoppedByVoice = true; // its "stopped" result is not news
             AgentService.stop(ctx);
             for (int i = 0; i < 50 && RunState.isRunning(); i++) Thread.sleep(100);
-            Log.i(AgentService.TAG, "voice call: task restarted with the user's addition");
+            AppLog.i(AppLog.CALL, "task restarted with the user's addition");
             String refused = startTask(task);
             stoppedByVoice = false;
             if (refused != null) {
@@ -994,7 +993,7 @@ final class VoiceCall implements RealtimeSocket.Listener {
         UsageStore.record(ctx, provider.id, model, UsageStore.VOICE, in, out, false);
         long limit = AppSettings.dailyTokenLimit(ctx);
         if (limit > 0 && UsageStore.todayTokens(ctx) >= limit) {
-            Log.w(AgentService.TAG, "voice call: daily token limit reached");
+            AppLog.w(AppLog.CALL, "daily token limit reached");
             ended = true;
         }
     }
@@ -1123,7 +1122,7 @@ final class VoiceCall implements RealtimeSocket.Listener {
             }
             if (best != null) {
                 boolean ok = audio.setCommunicationDevice(best);
-                Log.i(AgentService.TAG, "voice call: audio to " + routeName(best.getType()) + (ok ? "" : " (refused)"));
+                AppLog.i(AppLog.CALL, "audio to " + routeName(best.getType()) + (ok ? "" : " (refused)"));
             }
         } else {
             boolean bluetooth = false, wired = false;
@@ -1136,7 +1135,7 @@ final class VoiceCall implements RealtimeSocket.Listener {
             if (on && bluetooth) {
                 audio.startBluetoothSco();
                 audio.setBluetoothScoOn(true);
-                Log.i(AgentService.TAG, "voice call: audio to bluetooth");
+                AppLog.i(AppLog.CALL, "audio to bluetooth");
             } else if (!on && audio.isBluetoothScoOn()) {
                 audio.setBluetoothScoOn(false);
                 audio.stopBluetoothSco();

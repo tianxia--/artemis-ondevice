@@ -6,7 +6,6 @@ import android.app.Application;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
-import android.util.Log;
 import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityNodeInfo;
 import android.view.accessibility.AccessibilityWindowInfo;
@@ -82,7 +81,7 @@ public class AgentAccessibilityService extends AccessibilityService {
         super.onServiceConnected();
         instance = this;
         getApplication().registerActivityLifecycleCallbacks(screens);
-        Log.i(AgentService.TAG, "accessibility service connected");
+        AppLog.i(AppLog.AGENT, "accessibility service connected");
         main.post(new Runnable() {
             @Override public void run() { applyBubbleSetting(); }
         });
@@ -123,10 +122,13 @@ public class AgentAccessibilityService extends AccessibilityService {
     }
 
     @Override
-    public void onInterrupt() {}
+    public void onInterrupt() {
+        AppLog.w(AppLog.AGENT, "accessibility service interrupted");
+    }
 
     @Override
     public void onDestroy() {
+        AppLog.w(AppLog.AGENT, "accessibility service stopped (turned off, or the app was updated or killed)");
         getApplication().unregisterActivityLifecycleCallbacks(screens);
         if (bubble != null) {
             bubble.remove();

@@ -70,6 +70,8 @@ history and only the latest screenshot is sent.
   at any time, confirm sensitive actions by voice, and hear the result. Speech is recognized on the
   phone and only text is sent; say "停下" to stop a task or "结束对话" to hang up. The wake word can be
   changed, and a voiceprint makes calls ignore other people nearby.
+- **Logs**: every flow is logged to a file on the phone (7 days, no private content); Settings > Data >
+  Export logs shares them for troubleshooting. See [docs/logging.md](docs/logging.md).
 - **Money is off limits**: banking, payment, wallet, securities and crypto apps (including WeChat, QQ
   and Alipay) are never operated, tasks about transfers, payments or purchases are refused, and
   buttons that pay, transfer or buy are never tapped. This avoids account bans and misuse for fraud,

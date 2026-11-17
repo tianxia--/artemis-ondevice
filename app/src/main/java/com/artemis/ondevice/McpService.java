@@ -10,7 +10,6 @@ import android.content.Intent;
 import android.content.pm.ServiceInfo;
 import android.os.IBinder;
 import android.util.Base64;
-import android.util.Log;
 
 import java.net.Inet4Address;
 import java.net.InetAddress;
@@ -82,7 +81,7 @@ public class McpService extends Service {
                 }
             }
         } catch (Exception e) {
-            Log.w(AgentService.TAG, "network interfaces not readable: " + e.getClass().getSimpleName());
+            AppLog.w(AppLog.MCP, "network interfaces not readable: " + e.getClass().getSimpleName());
         }
         return other;
     }
@@ -115,10 +114,10 @@ public class McpService extends Service {
                 s.start();
                 server = s;
                 lastError = null;
-                Log.i(AgentService.TAG, "mcp listening on " + (lan ? "all interfaces" : "localhost") + ":" + PORT);
+                AppLog.i(AppLog.MCP, "mcp listening on " + (lan ? "all interfaces" : "localhost") + ":" + PORT);
             } catch (Exception e) {
                 lastError = e.getClass().getSimpleName() + ": " + e.getMessage();
-                Log.w(AgentService.TAG, "mcp not started: " + lastError);
+                AppLog.w(AppLog.MCP, "mcp not started: " + lastError);
                 stopSelf();
             }
         }

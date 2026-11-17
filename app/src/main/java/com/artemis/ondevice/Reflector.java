@@ -1,7 +1,6 @@
 package com.artemis.ondevice;
 
 import android.content.Context;
-import android.util.Log;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -168,7 +167,7 @@ final class Reflector {
                 if (o != null) out.add(o);
             }
         } catch (Exception e) {
-            Log.w(AgentService.TAG, "reflection reply not JSON");
+            AppLog.w(AppLog.AGENT, "reflection reply not JSON");
         }
         return out;
     }

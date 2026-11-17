@@ -1,7 +1,6 @@
 package com.artemis.ondevice;
 
 import android.content.Context;
-import android.util.Log;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -41,7 +40,7 @@ final class ExperienceStore {
                     .optJSONArray("lessons");
             if (a != null) for (int i = 0; i < a.length(); i++) out.add(Experience.fromJson(a.getJSONObject(i)));
         } catch (Exception e) {
-            Log.w(AgentService.TAG, "experience not readable: " + e.getMessage());
+            AppLog.w(AppLog.AGENT, "experience not readable: " + e.getMessage());
         }
         return out;
     }
@@ -136,7 +135,7 @@ final class ExperienceStore {
                 if (completed) e.successes++;
                 e.steps += steps;
                 if (!e.approved && e.uses >= DEMOTE_AFTER_USES && e.successRate() < DEMOTE_BELOW_PERCENT) {
-                    Log.i(AgentService.TAG, "lesson " + e.id + " demoted: " + e.successRate() + "% of " + e.uses + " runs");
+                    AppLog.i(AppLog.AGENT, "lesson " + e.id + " demoted: " + e.successRate() + "% of " + e.uses + " runs");
                     e.seen = 1;
                     e.uses = 0;
                     e.successes = 0;
@@ -145,7 +144,7 @@ final class ExperienceStore {
             }
             write(ctx, all);
         } catch (Exception e) {
-            Log.w(AgentService.TAG, "lesson use not saved: " + e.getMessage());
+            AppLog.w(AppLog.AGENT, "lesson use not saved: " + e.getMessage());
         }
     }
 

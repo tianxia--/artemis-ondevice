@@ -17,6 +17,8 @@ All notable changes to this project are listed here. The format follows
 - Model services can hold realtime voice models: each model is a task model or a realtime voice model, and a service has an optional realtime voice URL. "Test connection" checks the realtime connection when a service has only voice models.
 - `scripts/realtime-probe.py` tries a realtime voice endpoint from a Mac; `VoiceTestReceiver` drives voice calls over adb for testing without a microphone.
 
+- Logs for troubleshooting: every flow writes to a daily file kept 7 days (keys, addresses, e-mail and phone numbers masked; never what you said, task text or screen content), and Settings > Data > Export logs shares a zip with the logs, app and device info, settings and a summary of recent tasks. See docs/logging.md.
+
 ### Changed
 - When fetching the model list fails, the message says that model names can be added by hand (some subscription plans have no model list).
 

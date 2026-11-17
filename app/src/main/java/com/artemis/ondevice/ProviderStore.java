@@ -257,6 +257,10 @@ final class ProviderStore {
         if (apiKey != null && !apiKey.trim().isEmpty()) {
             SecretStore.set(ctx, SecretStore.apiKeyRef(provider.id), apiKey.trim());
         }
+        AppLog.i(AppLog.SETTINGS, "model service saved: " + provider.id + ", " + provider.api + ", task models "
+                + provider.models(false).size() + ", voice models " + provider.models(true).size()
+                + ", realtime url " + (provider.realtimeUrl.isEmpty() ? "no" : "yes")
+                + (apiKey != null && !apiKey.trim().isEmpty() ? ", new key" : ""));
     }
 
     static synchronized void remove(Context ctx, String id) throws Exception {
@@ -270,6 +274,7 @@ final class ProviderStore {
         if (v != null && v.provider.equals(id)) data.remove("voice");
         save(ctx, data);
         SecretStore.delete(ctx, SecretStore.apiKeyRef(id));
+        AppLog.i(AppLog.SETTINGS, "model service removed: " + id);
     }
 
     static synchronized Active getActive(Context ctx) {
@@ -286,6 +291,7 @@ final class ProviderStore {
             data.put("active", new JSONObject().put("provider", provider).put("model", model));
         }
         save(ctx, data);
+        AppLog.i(AppLog.SETTINGS, "task model = " + (model == null || model.isEmpty() ? "none" : provider + " / " + model));
     }
 
     /** The realtime voice model for voice calls, or null to use the offline voice. */
@@ -303,6 +309,7 @@ final class ProviderStore {
             data.put("voice", new JSONObject().put("provider", provider).put("model", model));
         }
         save(ctx, data);
+        AppLog.i(AppLog.SETTINGS, "voice call model = " + (model == null || model.isEmpty() ? "offline" : provider + " / " + model));
     }
 
     static String apiKey(Context ctx, String providerId) throws Exception {

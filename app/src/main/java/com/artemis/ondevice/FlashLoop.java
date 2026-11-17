@@ -2,7 +2,6 @@ package com.artemis.ondevice;
 
 import android.content.Context;
 import android.text.TextUtils;
-import android.util.Log;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -129,7 +128,7 @@ final class FlashLoop {
         String nudge = null;
         int failStreak = 0;
         if (MoneyGuard.isBlockedTask(ctx, run.task)) {
-            Log.w(AgentService.TAG, "task involves money or a money app; not starting");
+            AppLog.w(AppLog.AGENT, "task involves money or a money app; not starting");
             run.answer = ctx.getString(R.string.blocked_app);
             run.endedAt = System.currentTimeMillis();
             run.status = RunRecord.FAILED;
@@ -161,7 +160,7 @@ final class FlashLoop {
                 Observation obs = Observation.capture(a11y);
                 long tObs = System.currentTimeMillis();
                 if (MoneyGuard.isBlockedApp(ctx, obs.packageName)) {
-                    Log.w(AgentService.TAG, "money app in front; stopping");
+                    AppLog.w(AppLog.AGENT, "money app in front; stopping");
                     status = RunRecord.FAILED;
                     answer = ctx.getString(R.string.blocked_app);
                     break;
@@ -170,7 +169,7 @@ final class FlashLoop {
                 long used = (long) run.promptTokens() + run.completionTokens();
                 long runLimit = AppSettings.runTokenLimit(ctx);
                 if (runLimit > 0 && used >= runLimit) {
-                    Log.w(AgentService.TAG, "run token limit reached: " + used + " of " + runLimit);
+                    AppLog.w(AppLog.AGENT, "run token limit reached: " + used + " of " + runLimit);
                     status = RunRecord.FAILED;
                     answer = ctx.getString(R.string.limit_run_reached, Format.tokens(used), Format.tokens(runLimit));
                     break;
@@ -226,7 +225,7 @@ final class FlashLoop {
                         answer = call.args.optString("answer", "").trim();
                         // A reply cut off at the token limit can carry finish with an empty answer.
                         if (answer.isEmpty() && !rec.reasoning.isEmpty()) {
-                            Log.w(AgentService.TAG, "finish without answer; using the step's reasoning");
+                            AppLog.w(AppLog.AGENT, "finish without answer; using the step's reasoning");
                             answer = rec.reasoning;
                         }
                         rec.actions.add("finish(" + status + ")");
@@ -273,13 +272,13 @@ final class FlashLoop {
                         RunStore.saveScreenshot(ctx, run.id, step, obs.jpeg);
                         rec.hasScreenshot = true;
                     } catch (Exception e) {
-                        Log.w(AgentService.TAG, "step screenshot not saved: " + e.getMessage());
+                        AppLog.w(AppLog.AGENT, "step screenshot not saved: " + e.getMessage());
                     }
                 }
                 run.steps.add(rec);
                 RunState.stepAdded();
                 saveProgress();
-                Log.i(AgentService.TAG, String.format(Locale.US,
+                AppLog.i(AppLog.AGENT, String.format(Locale.US,
                         "#%d obs %dms llm %dms act %dms | tok %d/%d | %s", step, rec.obsMs, rec.llmMs, rec.actMs,
                         rec.promptTokens, rec.completionTokens, actionNames(r.toolCalls)));
 
@@ -287,7 +286,7 @@ final class FlashLoop {
                 if (finished) break;
                 int repeats = countRepeat(obs, rec);
                 if (repeats >= REPEAT_STOP) {
-                    Log.w(AgentService.TAG, "no progress: same screen+action " + repeats + "x; stopping");
+                    AppLog.w(AppLog.AGENT, "no progress: same screen+action " + repeats + "x; stopping");
                     status = RunRecord.FAILED;
                     answer = ctx.getString(R.string.stopped_no_progress, REPEAT_WINDOW, repeats);
                     break;
@@ -295,7 +294,7 @@ final class FlashLoop {
                 if (repeats == REPEAT_WARN && nudge == null) nudge = REPEAT_WARNING;
                 failStreak = rec.failedAction && okActions == 0 ? failStreak + 1 : 0;
                 if (failStreak >= FAIL_STOP) {
-                    Log.w(AgentService.TAG, "all actions failed " + failStreak + " steps in a row; stopping");
+                    AppLog.w(AppLog.AGENT, "all actions failed " + failStreak + " steps in a row; stopping");
                     status = RunRecord.FAILED;
                     answer = ctx.getString(R.string.stopped_failures, failStreak);
                     break;
@@ -337,7 +336,7 @@ final class FlashLoop {
         run.answer = answer;
         run.endedAt = System.currentTimeMillis();
         run.status = status;
-        Log.i(AgentService.TAG, String.format(Locale.US, "run %s: %s | %d steps | %.1fs | tokens %d/%d",
+        AppLog.i(AppLog.AGENT, String.format(Locale.US, "run %s: %s | %d steps | %.1fs | tokens %d/%d",
                 run.id, status, run.steps.size(), run.durationMs() / 1000f, run.promptTokens(), run.completionTokens()));
     }
 
@@ -351,7 +350,7 @@ final class FlashLoop {
             throws InterruptedException {
         // Money is never moved, whatever the confirmation setting or earlier answers say.
         if (MoneyGuard.isMoneyAction(obs, call)) {
-            Log.w(AgentService.TAG, call.name + ": money action refused");
+            AppLog.w(AppLog.AGENT, call.name + ": money action refused");
             return call.name + " SKIPPED: Artemis never pays, transfers money or buys. Do not try another way; "
                     + "record it as not done and tell the user to do this step themselves.";
         }
@@ -364,7 +363,7 @@ final class FlashLoop {
                 ctx.getString(R.string.confirm_allow), ctx.getString(R.string.confirm_allow_all),
                 ctx.getString(R.string.confirm_deny)), true, stop);
         RunState.phase(before);
-        Log.i(AgentService.TAG, call.name + ": confirmation " + (pick == 0 ? "allowed" : pick == 1 ? "allowed for the task"
+        AppLog.i(AppLog.AGENT, call.name + ": confirmation " + (pick == 0 ? "allowed" : pick == 1 ? "allowed for the task"
                 : pick == 2 ? "declined" : "unanswered"));
         if (pick == 0) return null;
         if (pick == 1) {
@@ -440,7 +439,7 @@ final class FlashLoop {
             }
             if (MoneyGuard.isBlockedApp(ctx, obs.packageName)) return null;
             if (!appOk || index == Skill.NOT_FOUND) {
-                Log.i(AgentService.TAG, "replay: step " + (i + 1) + "/" + total + " target not on screen; model takes over");
+                AppLog.i(AppLog.AGENT, "replay: step " + (i + 1) + "/" + total + " target not on screen; model takes over");
                 return replayNotice(i, total, !appOk
                         ? "the screen is in " + obs.packageName + ", the recorded step expected " + act.optString("app")
                         : "the recorded target '" + clip(act.optString("key"), 60) + "' is not on screen");
@@ -474,7 +473,7 @@ final class FlashLoop {
             RunState.stepAdded();
             saveProgress();
             remember(rec);
-            Log.i(AgentService.TAG, String.format(Locale.US, "#%d replay obs %dms act %dms | %s",
+            AppLog.i(AppLog.AGENT, String.format(Locale.US, "#%d replay obs %dms act %dms | %s",
                     rec.index, rec.obsMs, rec.actMs, call.name));
             if (failed) return replayNotice(i + 1, total, declined != null ? "the user declined a step: " + what(declined)
                     : "the replayed action failed");
@@ -507,7 +506,7 @@ final class FlashLoop {
         try {
             RunStore.save(ctx, run);
         } catch (Exception e) {
-            Log.w(AgentService.TAG, "run progress not saved: " + e.getMessage());
+            AppLog.w(AppLog.AGENT, "run progress not saved: " + e.getMessage());
         }
     }
 
@@ -777,10 +776,10 @@ final class FlashLoop {
         Observation.Element e = old.elements.get(i);
         int j = Skill.find(fresh, Skill.key(e.label), old.nx(e.cx()), old.ny(e.cy()));
         if (j == Skill.NOT_FOUND) {
-            Log.i(AgentService.TAG, call.name + ": target " + i + " gone after the screen changed; skipped");
+            AppLog.i(AppLog.AGENT, call.name + ": target " + i + " gone after the screen changed; skipped");
             return null;
         }
-        if (j != i) Log.i(AgentService.TAG, call.name + ": target moved " + i + " -> " + j);
+        if (j != i) AppLog.i(AppLog.AGENT, call.name + ": target moved " + i + " -> " + j);
         try {
             return new ChatClient.ToolCall(call.name, new JSONObject(call.args.toString()).put("index", j));
         } catch (Exception ex) {

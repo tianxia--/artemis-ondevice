@@ -1,7 +1,6 @@
 package com.artemis.ondevice;
 
 import android.content.Context;
-import android.util.Log;
 
 import org.json.JSONObject;
 
@@ -63,7 +62,7 @@ final class UsageStore {
         try {
             return new JSONObject(new String(Files.readAllBytes(f.toPath()), StandardCharsets.UTF_8));
         } catch (Exception e) {
-            Log.w(AgentService.TAG, "usage not readable: " + e.getMessage());
+            AppLog.w(AppLog.USAGE, "usage not readable: " + e.getMessage());
             return new JSONObject();
         }
     }
@@ -91,7 +90,7 @@ final class UsageStore {
             }
             if (!tmp.renameTo(file(ctx))) throw new IllegalStateException("Cannot write usage");
         } catch (Exception e) {
-            Log.w(AgentService.TAG, "usage not saved: " + e.getMessage());
+            AppLog.w(AppLog.USAGE, "usage not saved: " + e.getMessage());
         }
     }
 

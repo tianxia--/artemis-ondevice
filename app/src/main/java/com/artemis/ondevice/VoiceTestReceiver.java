@@ -3,7 +3,6 @@ package com.artemis.ondevice;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
-import android.util.Log;
 
 /**
  * Drives voice calls from adb, to test them without a microphone:
@@ -55,7 +54,7 @@ public class VoiceTestReceiver extends BroadcastReceiver {
     }
 
     private void fail(String why) {
-        Log.w(AgentService.TAG, "voice test: " + why);
+        AppLog.i(AppLog.VOICE, "test command refused: " + why);
         setResultCode(0);
         setResultData(why);
     }

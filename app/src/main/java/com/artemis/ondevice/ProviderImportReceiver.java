@@ -3,7 +3,6 @@ package com.artemis.ondevice;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
-import android.util.Log;
 
 /**
  * Adds a provider from adb, the scripted form of "add model service":
@@ -47,10 +46,10 @@ public class ProviderImportReceiver extends BroadcastReceiver {
             if (active != null && !active.isEmpty()) ProviderStore.setActive(ctx, p.id, active);
             String voice = intent.getStringExtra("voice_model");
             if (voice != null && !voice.isEmpty()) ProviderStore.setVoice(ctx, p.id, voice);
-            Log.i(AgentService.TAG, "Imported provider " + p.id + " (" + p.models.size() + " models)");
+            AppLog.i(AppLog.SETTINGS, "Imported provider " + p.id + " (" + p.models.size() + " models)");
             setResultCode(1);
         } catch (Exception e) {
-            Log.w(AgentService.TAG, "Provider import failed: " + e.getMessage());
+            AppLog.w(AppLog.SETTINGS, "Provider import failed: " + e.getMessage());
             setResultCode(0);
             setResultData(e.getMessage());
         }

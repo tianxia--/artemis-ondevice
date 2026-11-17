@@ -1,7 +1,6 @@
 package com.artemis.ondevice;
 
 import android.content.Context;
-import android.util.Log;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -32,7 +31,7 @@ final class SkillStore {
                     .optJSONArray("skills");
             if (a != null) for (int i = 0; i < a.length(); i++) out.add(Skill.fromJson(a.getJSONObject(i)));
         } catch (Exception e) {
-            Log.w(AgentService.TAG, "skills not readable: " + e.getMessage());
+            AppLog.w(AppLog.AGENT, "skills not readable: " + e.getMessage());
         }
         return out;
     }
@@ -105,7 +104,7 @@ final class SkillStore {
             }
             write(ctx, skills);
         } catch (Exception e) {
-            Log.w(AgentService.TAG, "skill outcome not saved: " + e.getMessage());
+            AppLog.w(AppLog.AGENT, "skill outcome not saved: " + e.getMessage());
         }
     }
 }

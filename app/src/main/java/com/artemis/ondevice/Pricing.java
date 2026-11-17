@@ -1,7 +1,6 @@
 package com.artemis.ondevice;
 
 import android.content.Context;
-import android.util.Log;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -121,7 +120,7 @@ final class Pricing {
                     tableProvider.put(k, v.optString(2));
                 }
             } catch (Exception e) {
-                Log.w(AgentService.TAG, "price table not readable: " + e.getClass().getSimpleName());
+                AppLog.w(AppLog.USAGE, "price table not readable: " + e.getClass().getSimpleName());
             }
             table = m;
             return m;

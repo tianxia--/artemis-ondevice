@@ -8,7 +8,6 @@ import android.media.AudioRecord;
 import android.media.MediaRecorder;
 import android.os.Handler;
 import android.os.Looper;
-import android.util.Log;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
@@ -131,7 +130,7 @@ final class VoiceprintDialog {
                 else embeddings.add(e);
             }
         } catch (Exception e) {
-            Log.w(AgentService.TAG, "voiceprint: " + e.getMessage());
+            AppLog.w(AppLog.VOICE, "voiceprint: " + e.getMessage());
             problem = activity.getString(R.string.voiceprint_failed, String.valueOf(e.getMessage()));
         }
         final String p = problem;
@@ -148,7 +147,7 @@ final class VoiceprintDialog {
     private void finish() {
         try {
             Voiceprint.save(activity, Voiceprint.average(embeddings));
-            Log.i(AgentService.TAG, "voiceprint: saved from " + embeddings.size() + " sentences");
+            AppLog.i(AppLog.VOICE, "voiceprint: saved from " + embeddings.size() + " sentences");
             android.widget.Toast.makeText(activity, R.string.voiceprint_saved, android.widget.Toast.LENGTH_LONG).show();
         } catch (Exception e) {
             android.widget.Toast.makeText(activity, e.getMessage(), android.widget.Toast.LENGTH_LONG).show();

@@ -61,6 +61,16 @@ public class SettingsActivity extends AppCompatActivity {
                 v -> startActivity(new Intent(this, ProviderEditActivity.class)));
         findViewById(R.id.a11y_row).setOnClickListener(
                 v -> startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)));
+        findViewById(R.id.export_logs).setOnClickListener(v -> new Thread(() -> {
+            try {
+                java.io.File zip = LogExport.build(this);
+                runOnUiThread(() -> LogExport.share(this, zip));
+            } catch (Exception e) {
+                AppLog.w(AppLog.APP, "log export failed", e);
+                runOnUiThread(() -> Toast.makeText(this, getString(R.string.export_logs_failed, e.getMessage()),
+                        Toast.LENGTH_LONG).show());
+            }
+        }, "artemis-export").start());
         findViewById(R.id.clear_history).setOnClickListener(v -> new MaterialAlertDialogBuilder(this)
                 .setMessage(R.string.confirm_clear_history)
                 .setPositiveButton(R.string.action_clear, (d, w) -> new Thread(() -> RunStore.clear(this)).start())

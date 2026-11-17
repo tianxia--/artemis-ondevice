@@ -10,7 +10,6 @@ import android.content.Intent;
 import android.content.pm.ServiceInfo;
 import android.os.IBinder;
 import android.os.PowerManager;
-import android.util.Log;
 
 /**
  * Foreground service that owns one run at a time. It builds the {@link RunRecord}, runs
@@ -71,6 +70,7 @@ public class AgentService extends Service implements RunState.Listener {
         startForeground(NOTIFICATION_ID, progressNotification(), ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE);
         String action = intent == null ? null : intent.getAction();
         if (ACTION_STOP.equals(action)) {
+            AppLog.i(AppLog.AGENT, "stop requested" + (worker != null && worker.isAlive() ? "" : " (no run)"));
             stopRequested = true;
             ChatClient c = client;
             if (c != null) c.cancel();
@@ -79,7 +79,10 @@ public class AgentService extends Service implements RunState.Listener {
             return START_NOT_STICKY;
         }
         if (ACTION_START.equals(action)) {
-            if (worker != null && worker.isAlive()) return START_NOT_STICKY;
+            if (worker != null && worker.isAlive()) {
+                AppLog.w(AppLog.AGENT, "start ignored: a run is already going");
+                return START_NOT_STICKY;
+            }
             String id = intent.getStringExtra(EXTRA_RUN_ID);
             begin(intent.getStringExtra(EXTRA_TASK), id == null ? RunRecord.newId() : id);
         }
@@ -94,6 +97,9 @@ public class AgentService extends Service implements RunState.Listener {
         final RunRecord run = RunRecord.start(runId, task, provider == null ? "" : provider.id,
                 active == null ? "" : active.model, AppSettings.maxSteps(ctx), AppSettings.screenshot(ctx));
         RunState.begin(run);
+        AppLog.i(AppLog.AGENT, "run " + run.id + " start: task " + (task == null ? 0 : task.length()) + " chars, model "
+                + (provider == null ? "none" : provider.id + " / " + run.model) + ", max steps " + run.maxSteps
+                + ", screenshots " + run.screenshot);
         worker = new Thread(new Runnable() {
             @Override
             public void run() {
@@ -103,6 +109,7 @@ public class AgentService extends Service implements RunState.Listener {
                 try {
                     save(run);
                     if (provider == null) {
+                        AppLog.w(AppLog.AGENT, "run " + run.id + ": no model configured");
                         run.status = RunRecord.ERROR;
                         run.answer = getString(R.string.error_no_model);
                         run.endedAt = System.currentTimeMillis();
@@ -114,6 +121,7 @@ public class AgentService extends Service implements RunState.Listener {
                     long limit = AppSettings.dailyTokenLimit(ctx);
                     long today = UsageStore.todayTokens(ctx);
                     if (limit > 0 && today >= limit) {
+                        AppLog.w(AppLog.USAGE, "run " + run.id + " refused: daily token limit reached (" + today + " of " + limit + ")");
                         run.status = RunRecord.FAILED;
                         run.answer = getString(R.string.limit_daily_reached, Format.tokens(today), Format.tokens(limit));
                         run.endedAt = System.currentTimeMillis();
@@ -124,10 +132,12 @@ public class AgentService extends Service implements RunState.Listener {
                         @Override public boolean stopped() { return stopRequested; }
                     }, SkillStore.find(ctx, task)).run();
                 } catch (InterruptedException e) {
+                    AppLog.i(AppLog.AGENT, "run " + run.id + " interrupted (stopped)");
                     run.status = RunRecord.STOPPED;
                     run.answer = getString(R.string.stopped_by_you);
                     run.endedAt = System.currentTimeMillis();
                 } catch (Exception e) {
+                    AppLog.e(AppLog.AGENT, "run " + run.id + " error", e);
                     run.status = RunRecord.ERROR;
                     run.answer = e.getClass().getSimpleName() + ": " + e.getMessage();
                     run.endedAt = System.currentTimeMillis();
@@ -138,6 +148,8 @@ public class AgentService extends Service implements RunState.Listener {
                     RunStore.prune(ctx);
                     lock.release();
                     RunState.end(run);
+                    AppLog.i(AppLog.AGENT, "run " + run.id + " end: " + run.status + ", " + run.steps.size() + " steps, "
+                            + run.durationMs() + " ms, tokens " + run.promptTokens() + "/" + run.completionTokens());
                     notifyDone(run);
                     returnToApp(run);
                     afterRun(run, used);
@@ -172,7 +184,7 @@ public class AgentService extends Service implements RunState.Listener {
                     run.reflection = "failed: " + e.getClass().getSimpleName();
                 }
             }
-            Log.i(TAG, "reflection: " + run.reflection);
+            AppLog.i(AppLog.AGENT, "reflection: " + run.reflection);
             save(run);
         }, "artemis-reflect").start();
     }
@@ -181,7 +193,7 @@ public class AgentService extends Service implements RunState.Listener {
         try {
             RunStore.save(this, run);
         } catch (Exception e) {
-            Log.w(TAG, "run not saved: " + e.getMessage());
+            AppLog.w(AppLog.AGENT, "run not saved: " + e.getMessage());
         }
     }
 
@@ -241,7 +253,7 @@ public class AgentService extends Service implements RunState.Listener {
                     .putExtra(RunDetailActivity.EXTRA_RUN_ID, r.id)
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP));
         } catch (RuntimeException e) {
-            Log.w(TAG, "could not bring the run summary to front: " + e.getMessage());
+            AppLog.w(AppLog.AGENT, "could not bring the run summary to front: " + e.getMessage());
         }
     }
 

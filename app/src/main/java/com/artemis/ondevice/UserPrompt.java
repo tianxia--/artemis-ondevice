@@ -82,6 +82,7 @@ final class UserPrompt {
             wm.addView(card[0], params(s));
         });
         pending = new Pending(message, options, confirm, picked, answered);
+        AppLog.i(AppLog.AGENT, (confirm ? "confirmation" : "question") + " shown, " + options.size() + " options");
         try {
             long deadline = System.currentTimeMillis() + TIMEOUT_MS;
             while (!answered.await(200, TimeUnit.MILLISECONDS)) {
@@ -89,6 +90,8 @@ final class UserPrompt {
             }
         } finally {
             pending = null;
+            AppLog.i(AppLog.AGENT, (confirm ? "confirmation" : "question") + " closed: "
+                    + (picked.get() == NO_ANSWER ? (stop.stopped() ? "run stopped" : "no answer in time") : "option " + picked.get()));
             final CountDownLatch removed = new CountDownLatch(1);
             main.post(() -> {
                 if (card[0] != null && card[0].isAttachedToWindow()) wm.removeView(card[0]);

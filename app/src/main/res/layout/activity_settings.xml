@@ -490,6 +490,20 @@
                 android:text="@string/section_data" />
 
             <com.google.android.material.button.MaterialButton
+                android:id="@+id/export_logs"
+                style="@style/Widget.Material3.Button.TonalButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/export_logs" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="8dp"
+                android:text="@string/export_logs_hint"
+                android:textAppearance="@style/TextAppearance.Artemis.Caption" />
+
+            <com.google.android.material.button.MaterialButton
                 android:id="@+id/clear_history"
                 style="@style/Widget.Material3.Button.OutlinedButton"
                 android:layout_width="match_parent"

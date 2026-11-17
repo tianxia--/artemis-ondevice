@@ -1,7 +1,6 @@
 package com.artemis.ondevice;
 
 import android.util.Base64;
-import android.util.Log;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -263,13 +262,14 @@ final class ChatClient {
                 return once(method, path, body);
             } catch (HttpError e) {
                 last = e;
+                AppLog.w(AppLog.MODEL, "model request HTTP " + e.code + (attempt == 0 ? "" : " (attempt " + (attempt + 1) + ")"));
                 if (e.code != 429 && e.code < 500) throw e;
             } catch (IOException e) {
                 if (cancelled) throw new IOException("Cancelled");
                 last = e;
             }
             if (attempt < RETRY_WAIT_MS.length) {
-                Log.w(AgentService.TAG, "model request failed (" + last.getClass().getSimpleName() + "); retry "
+                AppLog.w(AppLog.MODEL, "model request failed (" + last.getClass().getSimpleName() + "); retry "
                         + (attempt + 1) + "/" + RETRY_WAIT_MS.length + " in " + RETRY_WAIT_MS[attempt] / 1000 + "s");
                 Thread.sleep(RETRY_WAIT_MS[attempt]);
             }

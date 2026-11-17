@@ -16,7 +16,6 @@ import android.media.AudioRecord;
 import android.media.MediaRecorder;
 import android.media.ToneGenerator;
 import android.os.IBinder;
-import android.util.Log;
 
 /**
  * Hands-free control, fully on the phone: wait for the wake word, listen to the task, let the
@@ -66,6 +65,7 @@ public class VoiceService extends Service implements Runnable {
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         if (intent != null && ACTION_STOP.equals(intent.getAction())) {
+            AppLog.i(AppLog.VOICE, "service stop requested");
             shutdown();
             return START_NOT_STICKY;
         }
@@ -74,10 +74,14 @@ public class VoiceService extends Service implements Runnable {
         startForeground(NOTIFICATION_ID, notification(getString(R.string.voice_waiting, AppSettings.wakeWord(this))),
                 ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE);
         if (!canRun(this)) {
+            AppLog.w(AppLog.VOICE, "service not started: voice wake-up " + (AppSettings.voice(this) ? "on" : "off")
+                    + ", microphone permission " + (checkSelfPermission(Manifest.permission.RECORD_AUDIO)
+                    == PackageManager.PERMISSION_GRANTED ? "granted" : "missing"));
             shutdown();
             return START_NOT_STICKY;
         }
         if (worker == null || !worker.isAlive()) {
+            AppLog.i(AppLog.VOICE, "service start" + (intent == null ? " (restarted by the system)" : ""));
             running = true;
             worker = new Thread(this, "artemis-voice");
             worker.start();
@@ -94,6 +98,7 @@ public class VoiceService extends Service implements Runnable {
 
     @Override
     public void onDestroy() {
+        AppLog.i(AppLog.VOICE, "service destroyed");
         running = false;
         if (worker != null) worker.interrupt();
         super.onDestroy();
@@ -111,7 +116,7 @@ public class VoiceService extends Service implements Runnable {
             long t0 = System.currentTimeMillis();
             engine = SpeechEngine.load(getAssets());
             engine.prepare(PROMPT, OK, CANCELLED, CALL_FAILED, getString(R.string.blocked_app));
-            Log.i(AgentService.TAG, "voice models loaded in " + (System.currentTimeMillis() - t0) + " ms");
+            AppLog.i(AppLog.VOICE, "voice models loaded in " + (System.currentTimeMillis() - t0) + " ms");
             mic = new AudioRecord(MediaRecorder.AudioSource.VOICE_RECOGNITION, SpeechEngine.SAMPLE_RATE,
                     AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, CHUNK * 2 * 4);
             mic.startRecording();
@@ -121,7 +126,7 @@ public class VoiceService extends Service implements Runnable {
                 boolean requested = callRequested;
                 if (!requested && !engine.wakeWord(read())) continue;
                 callRequested = false;
-                Log.i(AgentService.TAG, requested ? "voice: call requested over adb" : "voice: wake word");
+                AppLog.i(AppLog.VOICE, requested ? "call requested over adb" : "wake word heard");
                 if (!call(engine)) converse(engine);
                 restartMic();
                 engine.resetWakeWord();
@@ -130,7 +135,7 @@ public class VoiceService extends Service implements Runnable {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         } catch (Exception e) {
-            Log.w(AgentService.TAG, "voice stopped: " + e.getClass().getSimpleName() + ": " + e.getMessage());
+            AppLog.w(AppLog.VOICE, "voice stopped: " + e.getClass().getSimpleName() + ": " + e.getMessage());
             status(getString(R.string.voice_failed, String.valueOf(e.getMessage())));
         } finally {
             if (mic != null) {
@@ -147,10 +152,10 @@ public class VoiceService extends Service implements Runnable {
         if (phrase.equals(engine.wakeWord())) return;
         try {
             engine.setWakeWord(phrase, WakeWord.keywordLine(this, phrase));
-            Log.i(AgentService.TAG, "voice: wake word changed (" + phrase.length() + " chars)");
+            AppLog.i(AppLog.VOICE, "wake word changed (" + phrase.length() + " chars)");
             status(getString(R.string.voice_waiting, phrase));
         } catch (IllegalArgumentException e) {
-            Log.w(AgentService.TAG, "voice: wake word not usable, keeping the old one");
+            AppLog.w(AppLog.VOICE, "wake word not usable, keeping the old one");
             AppSettings.setWakeWord(this, engine.wakeWord());
         }
     }
@@ -168,7 +173,7 @@ public class VoiceService extends Service implements Runnable {
             new VoiceCall(this, engine, voice, this::status).run();
             return true;
         } catch (VoiceCall.Unavailable e) {
-            Log.w(AgentService.TAG, "voice call unavailable: " + e.getMessage());
+            AppLog.w(AppLog.VOICE, "voice call unavailable: " + e.getMessage());
             restartMic();
             say(engine, CALL_FAILED);
             return false;
@@ -184,20 +189,20 @@ public class VoiceService extends Service implements Runnable {
         beep();
         status(getString(R.string.voice_listening));
         String heard = listen(engine);
-        Log.i(AgentService.TAG, "voice: heard " + heard.length() + " chars");
+        AppLog.i(AppLog.VOICE, "heard " + heard.length() + " chars");
         if (heard.isEmpty()) {
             // Woken but nothing followed: ask, like a person would, and listen once more.
             say(engine, PROMPT);
             status(getString(R.string.voice_listening));
             heard = listen(engine);
-            Log.i(AgentService.TAG, "voice: heard " + heard.length() + " chars after prompt");
+            AppLog.i(AppLog.VOICE, "heard " + heard.length() + " chars after prompt");
             if (heard.isEmpty()) return; // still silent: go back to waiting without a word
         }
         for (int amends = 0; ; amends++) {
             status(getString(R.string.voice_correcting));
             long tc = System.currentTimeMillis();
             TaskCorrector.Result r = TaskCorrector.correct(this, heard);
-            Log.i(AgentService.TAG, "voice: corrected in " + (System.currentTimeMillis() - tc) + " ms, confirm=" + r.confirm);
+            AppLog.i(AppLog.VOICE, "corrected in " + (System.currentTimeMillis() - tc) + " ms, confirm=" + r.confirm);
             if (MoneyGuard.isBlockedTask(this, heard) || MoneyGuard.isBlockedTask(this, r.task)) {
                 say(engine, getString(R.string.blocked_app));
                 return;
@@ -210,7 +215,7 @@ public class VoiceService extends Service implements Runnable {
             say(engine, r.task + "，确认吗？");
             status(getString(R.string.voice_confirming));
             String answer = listen(engine);
-            Log.i(AgentService.TAG, "voice: answer " + answer.length() + " chars");
+            AppLog.i(AppLog.VOICE, "answer " + answer.length() + " chars");
             if (isYes(answer)) {
                 say(engine, OK);
                 say(engine, runTask(r.task));
@@ -233,7 +238,7 @@ public class VoiceService extends Service implements Runnable {
         while (running && System.currentTimeMillis() < until) {
             if (engine.feedUtterance(read())) break;
         }
-        Log.i(AgentService.TAG, "voice: listened " + (System.currentTimeMillis() - t0) + " ms");
+        AppLog.i(AppLog.VOICE, "listened " + (System.currentTimeMillis() - t0) + " ms");
         return engine.utteranceText();
     }
 
@@ -297,7 +302,7 @@ public class VoiceService extends Service implements Runnable {
         status(getString(R.string.voice_speaking));
         long t0 = System.currentTimeMillis();
         engine.speak(text);
-        Log.i(AgentService.TAG, "voice: spoke " + text.length() + " chars in " + (System.currentTimeMillis() - t0) + " ms");
+        AppLog.i(AppLog.VOICE, "spoke " + text.length() + " chars in " + (System.currentTimeMillis() - t0) + " ms");
     }
 
     private static void beep() {

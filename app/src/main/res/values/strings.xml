@@ -316,4 +316,7 @@
     </string-array>
     <string name="setting_web_search">语音通话可以联网搜索</string>
     <string name="setting_web_search_hint">天气、新闻这类实时信息直接搜索回答，不用打开应用。搜索由语音通话模型的服务提供，可能会额外计费；开启后有时要等十几秒才回答，所以默认关闭。关闭时会改为打开相关应用去查。</string>
+    <string name="export_logs">导出日志</string>
+    <string name="export_logs_hint">打包最近 7 天的运行日志，用于排查问题。不包含你说的话、任务内容、屏幕内容、密钥和服务地址。</string>
+    <string name="export_logs_failed">导出失败：%1$s</string>
 </resources>

@@ -144,7 +144,7 @@ final class Observation {
                                 hw.recycle();
                             }
                         } catch (Throwable t) {
-                            android.util.Log.w(AgentService.TAG, "screenshot copy failed", t);
+                            AppLog.w(AppLog.AGENT, "screenshot copy failed", t);
                         } finally {
                             latch.countDown();
                         }

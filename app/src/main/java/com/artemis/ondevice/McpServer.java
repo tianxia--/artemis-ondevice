@@ -1,6 +1,5 @@
 package com.artemis.ondevice;
 
-import android.util.Log;
 
 import org.json.JSONObject;
 
@@ -65,7 +64,7 @@ final class McpServer {
                     Socket c = s.accept();
                     pool.execute(() -> serve(c));
                 } catch (IOException e) {
-                    if (!s.isClosed()) Log.w(AgentService.TAG, "mcp accept failed: " + e.getMessage());
+                    if (!s.isClosed()) AppLog.w(AppLog.MCP, "mcp accept failed: " + e.getMessage());
                 }
             }
         }, "artemis-mcp");
@@ -136,7 +135,7 @@ final class McpServer {
             String body = new String(readBody(in, length), StandardCharsets.UTF_8);
             handle(out, body);
         } catch (Exception e) {
-            Log.w(AgentService.TAG, "mcp connection: " + e.getClass().getSimpleName());
+            AppLog.w(AppLog.MCP, "mcp connection: " + e.getClass().getSimpleName());
         }
     }
 
@@ -157,7 +156,7 @@ final class McpServer {
         String method = msg.optString("method");
         JSONObject params = msg.optJSONObject("params");
         if (params == null) params = new JSONObject();
-        Log.i(AgentService.TAG, "mcp " + method + ("tools/call".equals(method) ? " " + params.optString("name") : ""));
+        AppLog.i(AppLog.MCP, "mcp " + method + ("tools/call".equals(method) ? " " + params.optString("name") : ""));
         String session = null;
         JSONObject reply;
         try {

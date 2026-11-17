@@ -24,6 +24,7 @@
     </queries>
 
     <application
+        android:name=".ArtemisApp"
         android:allowBackup="false"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
@@ -106,6 +107,17 @@
                 <action android:name="com.artemis.ondevice.IMPORT_PROVIDER" />
             </intent-filter>
         </receiver>
+
+        <!-- Shares exported logs (LogExport) from cache/exports only. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.files"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
 
         <!-- Voice call test driver over adb (see VoiceTestReceiver); same guard as above. -->
         <receiver

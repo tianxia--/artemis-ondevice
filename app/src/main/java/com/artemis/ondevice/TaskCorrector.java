@@ -1,7 +1,6 @@
 package com.artemis.ondevice;
 
 import android.content.Context;
-import android.util.Log;
 
 import org.json.JSONObject;
 
@@ -45,7 +44,7 @@ final class TaskCorrector {
         try {
             client = new ChatClient(p, ProviderStore.apiKey(ctx, p.id)).countAs(ctx, UsageStore.VOICE);
         } catch (Exception e) {
-            Log.w(AgentService.TAG, "correction skipped: " + e.getClass().getSimpleName());
+            AppLog.w(AppLog.AGENT, "correction skipped: " + e.getClass().getSimpleName());
             return fallback;
         }
         Future<ChatClient.Result> f = EXEC.submit(() -> client.complete(model, SYSTEM, heard, null, null, 160));
@@ -59,7 +58,7 @@ final class TaskCorrector {
         } catch (Exception e) {
             client.cancel();
             f.cancel(true);
-            Log.w(AgentService.TAG, "correction skipped: " + e.getClass().getSimpleName());
+            AppLog.w(AppLog.AGENT, "correction skipped: " + e.getClass().getSimpleName());
             return fallback;
         }
     }
