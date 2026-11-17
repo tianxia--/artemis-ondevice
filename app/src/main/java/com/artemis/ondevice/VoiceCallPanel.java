@@ -60,7 +60,7 @@ final class VoiceCallPanel {
         main.post(() -> {
             if (card == null) return;
             orb.state = state;
-            status.setText(service.getString(label(state)));
+            status.setText(AppLocale.wrap(service).getString(label(state)));
         });
     }
 
@@ -158,7 +158,7 @@ final class VoiceCallPanel {
     // ------------------------------------------------------------------ views (main thread)
 
     private void attach() {
-        Context c = new ContextThemeWrapper(service, R.style.Theme_Artemis);
+        Context c = new ContextThemeWrapper(AppLocale.wrap(service), R.style.Theme_Artemis);
         int pad = dp(c, 16);
         LinearLayout box = new LinearLayout(c);
         box.setOrientation(LinearLayout.VERTICAL);

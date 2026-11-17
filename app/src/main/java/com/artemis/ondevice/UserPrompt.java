@@ -109,7 +109,7 @@ final class UserPrompt {
     }
 
     private static View build(Context base, String title, String message, List<String> options, OnPick onPick) {
-        Context c = new ContextThemeWrapper(base, R.style.Theme_Artemis);
+        Context c = new ContextThemeWrapper(AppLocale.wrap(base), R.style.Theme_Artemis);
         int pad = dp(c, 20);
         LinearLayout box = new LinearLayout(c);
         box.setOrientation(LinearLayout.VERTICAL);

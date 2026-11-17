@@ -273,7 +273,7 @@
     <string name="test_realtime_ok">Realtime voice connected · %1$s · %2$d ms</string>
     <string name="voice_model_label">Voice call model</string>
     <string name="voice_model_offline">None (offline voice)</string>
-    <string name="voice_model_hint">With a realtime voice model, the wake word starts a voice call: talk back and forth, interrupt at any time, and confirm sensitive actions by voice. Online only during the call, billed by the chosen service; no audio is sent while nobody speaks, and it hangs up after 15 s of silence. Falls back to offline voice when it cannot connect.</string>
+    <string name="voice_model_hint">With a realtime voice model, the wake word starts a voice call: talk back and forth, interrupt at any time, and confirm sensitive actions by voice. What you say is recognized on the phone and only the text goes to the chosen service; its reply is spoken. It hangs up after 15 s of silence and falls back to offline voice when it cannot connect.</string>
     <string name="voice_call_connecting">Connecting the voice call…</string>
     <string name="voice_call_talking">Voice call</string>
     <string name="voice_call_task">Voice call · running the task</string>

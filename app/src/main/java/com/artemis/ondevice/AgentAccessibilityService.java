@@ -17,6 +17,12 @@ import android.view.accessibility.AccessibilityWindowInfo;
  */
 public class AgentAccessibilityService extends AccessibilityService {
 
+    /** Notifications, overlays and spoken texts in the language picked in Settings. */
+    @Override
+    protected void attachBaseContext(android.content.Context base) {
+        super.attachBaseContext(AppLocale.wrap(base));
+    }
+
     private static volatile AgentAccessibilityService instance;
     private volatile String currentPackage = "";
     private volatile FloatingBubble bubble;

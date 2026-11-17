@@ -24,6 +24,12 @@ import java.util.Collections;
  */
 public class McpService extends Service {
 
+    /** Notifications, overlays and spoken texts in the language picked in Settings. */
+    @Override
+    protected void attachBaseContext(android.content.Context base) {
+        super.attachBaseContext(AppLocale.wrap(base));
+    }
+
     static final int PORT = 8765;
     private static final String TOKEN_REF = "mcp:token";
     private static final String ACTION_STOP = "com.artemis.ondevice.MCP_STOP";

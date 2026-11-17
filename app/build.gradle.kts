@@ -14,7 +14,9 @@ android {
         versionCode = 3
         versionName = "0.3.0"
         // sherpa-onnx ships native libs for four ABIs; phones are arm64, the emulator x86_64.
-        ndk { abiFilters += listOf("arm64-v8a", "x86_64") }
+        // -Partemis.abi=arm64-v8a builds for one ABI only (smaller APK for quick installs on a device).
+        val onlyAbi = providers.gradleProperty("artemis.abi").orNull
+        ndk { abiFilters += if (onlyAbi != null) listOf(onlyAbi) else listOf("arm64-v8a", "x86_64") }
     }
 
     // Release signing comes from ~/.gradle/gradle.properties (never from the repo); without

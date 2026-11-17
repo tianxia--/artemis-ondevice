@@ -263,8 +263,8 @@ public class SettingsActivity extends AppCompatActivity {
         picker.setSimpleItems(labels);
         picker.setText(labels[selected], false);
         // Recreates the open activities in the new language.
-        picker.setOnItemClickListener((parent, view, position, id) -> AppCompatDelegate.setApplicationLocales(
-                LocaleListCompat.forLanguageTags(LANGUAGE_TAGS[position])));
+        // Cards and the call panel pick the language up when shown; notifications when services restart.
+        picker.setOnItemClickListener((parent, view, position, id) -> AppLocale.set(this, LANGUAGE_TAGS[position]));
     }
 
     @Override

@@ -30,6 +30,12 @@ import android.os.IBinder;
  */
 public class VoiceService extends Service implements Runnable {
 
+    /** Notifications, overlays and spoken texts in the language picked in Settings. */
+    @Override
+    protected void attachBaseContext(android.content.Context base) {
+        super.attachBaseContext(AppLocale.wrap(base));
+    }
+
     private static final String ACTION_STOP = "com.artemis.ondevice.VOICE_STOP";
     private static final String CHANNEL_ID = "artemis_voice";
     private static final int NOTIFICATION_ID = 18892;

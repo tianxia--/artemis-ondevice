@@ -40,12 +40,17 @@ final class AppLog {
             Pattern.compile("\\b(sk|st|ak)-[A-Za-z0-9_-]{8,}"),
             Pattern.compile("(?i)\\b(api[_-]?key|token|password|secret)\\s*[=:]\\s*\\S+"),
             Pattern.compile("(?i)\\b(https?|wss?)://\\S+"),
+            // Bare host names and IP addresses (e.g. in "failed to connect to host/1.2.3.4"): service
+            // addresses stay hidden. Package names (com.android.settings) end in no such domain.
+            Pattern.compile("(?i)\\b(?:[a-z0-9-]+\\.)+(?:com|cn|net|org|io|ai|dev|cloud|app|tech|top|xyz|co|me|info|site|local|internal|lan)\\b(?![.\\w])"),
+            Pattern.compile("\\b(?:\\d{1,3}\\.){3}\\d{1,3}\\b"),
             Pattern.compile("[\\w.+-]+@[\\w-]+\\.[\\w.-]+"),
             // Mainland mobile numbers, and 15-19 digit card or ID numbers; run ids (13 digits + "-") stay.
             Pattern.compile("(?<![\\d-])1[3-9]\\d{9}(?![\\d-])"),
             Pattern.compile("(?<![\\d-])\\d{15,19}(?![\\d-])"),
     };
-    private static final String[] MASKS = {"Bearer <hidden>", "<key>", "$1=<hidden>", "<url>", "<email>", "<phone>", "<number>"};
+    private static final String[] MASKS = {"Bearer <hidden>", "<key>", "$1=<hidden>", "<url>", "<host>", "<ip>", "<email>",
+            "<phone>", "<number>"};
 
     private static final LinkedBlockingQueue<String> QUEUE = new LinkedBlockingQueue<>();
     private static final Object WRITE_LOCK = new Object();

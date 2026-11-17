@@ -18,6 +18,12 @@ import android.os.PowerManager;
  */
 public class AgentService extends Service implements RunState.Listener {
 
+    /** Notifications, overlays and spoken texts in the language picked in Settings. */
+    @Override
+    protected void attachBaseContext(android.content.Context base) {
+        super.attachBaseContext(AppLocale.wrap(base));
+    }
+
     static final String TAG = "ArtemisAgent";
     static final String ACTION_START = "com.artemis.ondevice.START";
     static final String ACTION_STOP = "com.artemis.ondevice.STOP";

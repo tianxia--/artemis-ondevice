@@ -277,7 +277,7 @@
     <string name="test_realtime_ok">实时语音连接正常 · %1$s · %2$d ms</string>
     <string name="voice_model_label">语音通话模型</string>
     <string name="voice_model_offline">不用（离线语音）</string>
-    <string name="voice_model_hint">选了实时语音模型后，喊唤醒词会接通语音通话：可以连续对话、随时打断，敏感操作用说的来确认。只在通话中联网，按所选服务计费；没人说话时不发送声音，15 秒没人说话自动挂断。连不上时改用离线语音。</string>
+    <string name="voice_model_hint">选了实时语音模型后，喊唤醒词会接通语音通话：可以连续对话、随时打断，敏感操作用说的来确认。你说的话在手机上识别，只把文字发给所选服务；它的回答用语音播放。15 秒没人说话自动挂断；连不上时改用离线语音。</string>
     <string name="voice_call_connecting">正在接通语音…</string>
     <string name="voice_call_talking">语音通话中</string>
     <string name="voice_call_task">语音通话中 · 正在执行任务</string>
