@@ -129,6 +129,24 @@ final class WakeWord {
      * Whether recognized speech contains the wake word, by sound: same toneless syllables, one may
      * differ for 4+ characters (the recognizer writes 你好啊特 or 你好阿德 for 你好阿特).
      */
+    /**
+     * For the log, never the words: how close recognized speech came to the wake word, as
+     * "<syllables heard>/<closest number of matching syllables of the wake word>".
+     */
+    static String closeness(Context ctx, String heard, String phrase) {
+        java.util.List<String> h = toneless(ctx, heard), w = toneless(ctx, phrase);
+        int best = 0;
+        for (int start = -w.size() + 1; start < h.size(); start++) {
+            int same = 0;
+            for (int i = 0; i < w.size(); i++) {
+                int at = start + i;
+                if (at >= 0 && at < h.size() && h.get(at).equals(w.get(i))) same++;
+            }
+            best = Math.max(best, same);
+        }
+        return h.size() + " syllables, best match " + best + "/" + w.size();
+    }
+
     static boolean soundsLike(Context ctx, String heard, String phrase) {
         java.util.List<String> h = toneless(ctx, heard), w = toneless(ctx, phrase);
         if (w.isEmpty() || h.size() < w.size()) return false;

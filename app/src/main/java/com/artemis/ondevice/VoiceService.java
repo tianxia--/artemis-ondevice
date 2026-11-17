@@ -389,7 +389,11 @@ public class VoiceService extends Service implements Runnable {
         wakeSpeech = false;
         if (wakeGaveUp) return false;
         engine.feedUtterance(new float[SpeechEngine.SAMPLE_RATE * 3 / 10]); // flush the last syllable
-        return WakeWord.soundsLike(this, engine.utteranceText(), phrase);
+        String heard = engine.utteranceText();
+        if (WakeWord.soundsLike(this, heard, phrase)) return true;
+        // A short burst that was not the wake word: how close it came, never what was said.
+        AppLog.i(AppLog.VOICE, "speech " + wakeChunks * 100 + " ms, not the wake word: " + WakeWord.closeness(this, heard, phrase));
+        return false;
     }
 
     /**
