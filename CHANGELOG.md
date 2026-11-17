@@ -30,6 +30,7 @@ All notable changes to this project are listed here. The format follows
 - When fetching the model list fails, the message says that model names can be added by hand (some subscription plans have no model list).
 
 ### Fixed
+- The wake word was often missed: it is now also registered as spoken (third-tone sandhi: 你好 is said ní hǎo, not nǐ hǎo), for custom wake words too, and normal sensitivity is a bit easier (boost 1.5, threshold 0.20 instead of the stock 1.0 / 0.25; high is 2.0 / 0.12).
 - Voice wake-up listens within a second of starting: the wake word model loads first and the others in the background (all at once took 10-25 s, once 85 s on a throttled phone, and wake words in that time were missed). The notification says it is getting ready until then.
 - Tasks started by voice stay on the screen where they ended instead of opening the app's result page; the result is spoken.
 - Voice calls connect while the audio devices open, not after (about 0.7 s sooner).

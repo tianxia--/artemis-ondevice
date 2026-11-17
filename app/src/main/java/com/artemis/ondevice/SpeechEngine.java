@@ -120,12 +120,16 @@ final class SpeechEngine {
     void setWakeWord(String phrase, String line, boolean high) {
         wakeWord = phrase;
         wakeHigh = high;
-        if (high) wakeLine = line.replace(" @", " :2.0 #0.12 @");
-        else wakeLine = WakeWord.DEFAULT.equals(phrase) ? "" : line;
+        // Every pronunciation gets a boost and a trigger threshold (keywords.txt uses the stock 1.0 / 0.25,
+        // which missed the wake word often on a phone).
+        wakeLine = line.replace(" @", high ? " :2.0 #0.12 @" : " :1.5 #0.20 @");
         resetWakeWord();
     }
 
     boolean wakeHigh() { return wakeHigh; }
+
+    /** False until setWakeWord ran once: the stream then still has only keywords.txt's stock settings. */
+    boolean wakeConfigured() { return !wakeLine.isEmpty(); }
 
     String wakeWord() { return wakeWord; }
 

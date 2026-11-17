@@ -51,18 +51,55 @@ final class WakeWord {
         } catch (IOException e) {
             throw new IllegalArgumentException(ctx.getString(R.string.wake_word_no_models));
         }
-        StringBuilder line = new StringBuilder();
+        String[] syllables = new String[p.length()];
         for (int i = 0; i < p.length(); i++) {
             String ch = String.valueOf(p.charAt(i));
-            String py = pinyin.get(ch);
-            if (py == null) throw new IllegalArgumentException(ctx.getString(R.string.wake_word_bad_char, ch));
-            for (String token : split(py)) {
+            syllables[i] = pinyin.get(ch);
+            if (syllables[i] == null) throw new IllegalArgumentException(ctx.getString(R.string.wake_word_bad_char, ch));
+            for (String token : split(syllables[i])) {
                 if (!tokens.contains(token)) throw new IllegalArgumentException(ctx.getString(R.string.wake_word_bad_char, ch));
-                if (line.length() > 0) line.append(' ');
-                line.append(token);
             }
         }
-        return line + " @" + p;
+        String dictionary = tokensOf(syllables);
+        String spoken = tokensOf(sandhi(syllables));
+        // Both pronunciations, "/"-separated: 你好 is written nǐ hǎo but said ní hǎo.
+        boolean usable = !spoken.equals(dictionary);
+        for (String t : spoken.split(" ")) usable &= tokens.contains(t);
+        return dictionary + " @" + p + (usable ? "/" + spoken + " @" + p : "");
+    }
+
+    private static String tokensOf(String[] syllables) {
+        StringBuilder sb = new StringBuilder();
+        for (String s : syllables) {
+            for (String token : split(s)) {
+                if (sb.length() > 0) sb.append(' ');
+                sb.append(token);
+            }
+        }
+        return sb.toString();
+    }
+
+    private static final String THIRD = "ǎěǐǒǔǚ", SECOND = "áéíóúǘ";
+
+    /** Third-tone sandhi: a third tone before another third tone is said as a second tone. */
+    static String[] sandhi(String[] syllables) {
+        String[] out = syllables.clone();
+        for (int i = 0; i + 1 < out.length; i++) {
+            if (third(syllables[i]) && third(syllables[i + 1])) {
+                StringBuilder sb = new StringBuilder(out[i]);
+                for (int k = 0; k < sb.length(); k++) {
+                    int at = THIRD.indexOf(sb.charAt(k));
+                    if (at >= 0) sb.setCharAt(k, SECOND.charAt(at));
+                }
+                out[i] = sb.toString();
+            }
+        }
+        return out;
+    }
+
+    private static boolean third(String syllable) {
+        for (int k = 0; k < syllable.length(); k++) if (THIRD.indexOf(syllable.charAt(k)) >= 0) return true;
+        return false;
     }
 
     /** "hǎo" -> ["h", "ǎo"]; a syllable without an initial ("ā") stays whole. */

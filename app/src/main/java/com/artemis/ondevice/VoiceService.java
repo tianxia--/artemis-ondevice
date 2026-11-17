@@ -194,7 +194,7 @@ public class VoiceService extends Service implements Runnable {
     private void applyWakeWord(SpeechEngine engine) {
         String phrase = AppSettings.wakeWord(this);
         boolean high = AppSettings.WAKE_HIGH.equals(AppSettings.wakeSensitivity(this));
-        if (phrase.equals(engine.wakeWord()) && high == engine.wakeHigh()) return;
+        if (engine.wakeConfigured() && phrase.equals(engine.wakeWord()) && high == engine.wakeHigh()) return;
         try {
             engine.setWakeWord(phrase, WakeWord.keywordLine(this, phrase), high);
             AppLog.i(AppLog.VOICE, "wake word set (" + phrase.length() + " chars), sensitivity " + (high ? "high" : "normal"));
