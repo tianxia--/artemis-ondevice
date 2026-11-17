@@ -22,6 +22,8 @@ final class AppSettings {
     private static final String MCP_LAN = "mcp_lan";
     private static final String WAKE_WORD = "wake_word";
     private static final String WEB_SEARCH = "web_search";
+    private static final String WAKE_SENSITIVITY = "wake_sensitivity";
+    static final String WAKE_NORMAL = "normal", WAKE_HIGH = "high";
 
     private AppSettings() {}
 
@@ -46,6 +48,10 @@ final class AppSettings {
     /** The wake word, checked by {@link WakeWord#keywordLine} before it is saved. */
     static String wakeWord(Context c) { return p(c).getString(WAKE_WORD, WakeWord.DEFAULT); }
     static void setWakeWord(Context c, String v) { AppLog.i(AppLog.SETTINGS, "WakeWord = " + v); p(c).edit().putString(WAKE_WORD, v).apply(); }
+
+    /** How easily the wake word triggers: normal, or high (wakes more easily, and more often by mistake). */
+    static String wakeSensitivity(Context c) { return p(c).getString(WAKE_SENSITIVITY, WAKE_NORMAL); }
+    static void setWakeSensitivity(Context c, String v) { AppLog.i(AppLog.SETTINGS, "WakeSensitivity = " + v); p(c).edit().putString(WAKE_SENSITIVITY, v).apply(); }
 
     /**
      * Voice calls may search the web (weather, news). Off by default: with it on, Qwen-Audio realtime

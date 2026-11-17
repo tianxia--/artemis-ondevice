@@ -43,6 +43,13 @@ public class VoiceService extends Service implements Runnable {
     private static final String CALL_FAILED = "实时语音连不上，先用离线语音。";
 
     private volatile boolean running;
+    // Self-check while waiting for the wake word (see selfCheck): loudest sample since the last check,
+    // reads since then, whether the microphone looked unusable, wake-ups since the last heartbeat.
+    private int peak, reads, wakes;
+    private boolean micBroken;
+    private long lastHeartbeat;
+    private static final int CHECK_READS = 300;            // 30 s
+    private static final long HEARTBEAT_MS = 10 * 60_000;
     /** Set by {@link VoiceTestReceiver}: start a voice call as if the wake word was heard. */
     static volatile boolean callRequested;
     private Thread worker;
@@ -124,8 +131,13 @@ public class VoiceService extends Service implements Runnable {
             while (running) {
                 applyWakeWord(engine);
                 boolean requested = callRequested;
-                if (!requested && !engine.wakeWord(read())) continue;
+                if (!requested) {
+                    boolean heard = engine.wakeWord(read());
+                    if (++reads >= CHECK_READS) selfCheck(engine);
+                    if (!heard) continue;
+                }
                 callRequested = false;
+                wakes++;
                 AppLog.i(AppLog.VOICE, requested ? "call requested over adb" : "wake word heard");
                 if (!call(engine)) converse(engine);
                 restartMic();
@@ -149,10 +161,11 @@ public class VoiceService extends Service implements Runnable {
     /** Picks up a wake word changed in Settings (checked there; a bad one keeps the old). */
     private void applyWakeWord(SpeechEngine engine) {
         String phrase = AppSettings.wakeWord(this);
-        if (phrase.equals(engine.wakeWord())) return;
+        boolean high = AppSettings.WAKE_HIGH.equals(AppSettings.wakeSensitivity(this));
+        if (phrase.equals(engine.wakeWord()) && high == engine.wakeHigh()) return;
         try {
-            engine.setWakeWord(phrase, WakeWord.keywordLine(this, phrase));
-            AppLog.i(AppLog.VOICE, "wake word changed (" + phrase.length() + " chars)");
+            engine.setWakeWord(phrase, WakeWord.keywordLine(this, phrase), high);
+            AppLog.i(AppLog.VOICE, "wake word set (" + phrase.length() + " chars), sensitivity " + (high ? "high" : "normal"));
             status(getString(R.string.voice_waiting, phrase));
         } catch (IllegalArgumentException e) {
             AppLog.w(AppLog.VOICE, "wake word not usable, keeping the old one");
@@ -289,8 +302,54 @@ public class VoiceService extends Service implements Runnable {
         int n = mic.read(pcm, 0, CHUNK);
         if (n < 0) throw new IllegalStateException("microphone read error " + n);
         float[] f = new float[n];
-        for (int i = 0; i < n; i++) f[i] = pcm[i] / 32768f;
+        for (int i = 0; i < n; i++) {
+            f[i] = pcm[i] / 32768f;
+            int a = Math.abs(pcm[i]);
+            if (a > peak) peak = a;
+        }
         return f;
+    }
+
+    /**
+     * Every 30 s while waiting for the wake word: is the microphone really delivering sound? Android
+     * silences an app's recording when another app takes the microphone (a call, WeChat voice) or
+     * when the service was restarted from the background, and the stream is then all zeros, with no
+     * error. Says so in the notification and the log instead of failing silently; logs a heartbeat
+     * every 10 minutes.
+     */
+    private void selfCheck(SpeechEngine engine) {
+        boolean silenced = false;
+        try {
+            for (android.media.AudioRecordingConfiguration c : getSystemService(AudioManager.class)
+                    .getActiveRecordingConfigurations()) {
+                if (c.getClientAudioSessionId() == mic.getAudioSessionId() && c.isClientSilenced()) silenced = true;
+            }
+        } catch (RuntimeException e) {
+            AppLog.w(AppLog.VOICE, "recording state not readable: " + e.getMessage());
+        }
+        boolean broken = silenced || peak == 0;
+        if (broken != micBroken) {
+            micBroken = broken;
+            if (broken) {
+                AppLog.w(AppLog.VOICE, "microphone unusable: " + (silenced ? "silenced by the system (another app is "
+                        + "recording, or the service was started from the background)" : "only silence for 30 s"));
+                status(getString(R.string.voice_mic_paused));
+                restartMic(); // a fresh recording sometimes gets the microphone back
+            } else {
+                AppLog.i(AppLog.VOICE, "microphone works again");
+                status(getString(R.string.voice_waiting, engine.wakeWord()));
+            }
+        }
+        long now = System.currentTimeMillis();
+        if (now - lastHeartbeat > HEARTBEAT_MS) {
+            AppLog.i(AppLog.VOICE, "listening: " + wakes + " wake-ups " + (lastHeartbeat == 0 ? "since start"
+                    : "in " + (now - lastHeartbeat) / 60_000 + " min") + ", loudest sample " + peak + "/32768, microphone "
+                    + (broken ? "unusable" : "ok") + ", sensitivity " + AppSettings.wakeSensitivity(this));
+            lastHeartbeat = now;
+            wakes = 0;
+        }
+        peak = 0;
+        reads = 0;
     }
 
     private void restartMic() {

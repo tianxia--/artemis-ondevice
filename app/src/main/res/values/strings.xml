@@ -319,4 +319,13 @@
     <string name="export_logs">导出日志</string>
     <string name="export_logs_hint">打包最近 7 天的运行日志，用于排查问题。不包含你说的话、任务内容、屏幕内容、密钥和服务地址。</string>
     <string name="export_logs_failed">导出失败：%1$s</string>
+    <string name="voice_mic_paused">唤醒暂停：麦克风被系统或其他应用占用。打开一次 Artemis 可以恢复。</string>
+    <string name="setting_wake_high">提高唤醒灵敏度</string>
+    <string name="setting_wake_high_hint">更容易被唤醒，但也更容易被别的话误唤醒。喊不醒时再打开。</string>
+    <string name="background_label">让唤醒一直在线</string>
+    <string name="background_ok">电池优化已关闭</string>
+    <string name="background_needed">电池优化开着：手机可能会在后台关掉语音唤醒。</string>
+    <string name="background_battery">关闭电池优化</string>
+    <string name="background_startup">后台运行设置</string>
+    <string name="background_hint">华为、荣耀：在「手机管家 > 应用启动管理」里把 Artemis 改为手动管理，并打开「允许后台活动」。其他品牌在应用信息里允许后台运行、关闭省电限制。</string>
 </resources>

@@ -19,6 +19,9 @@ All notable changes to this project are listed here. The format follows
 
 - Logs for troubleshooting: every flow writes to a daily file kept 7 days (keys, addresses, e-mail and phone numbers masked; never what you said, task text or screen content), and Settings > Data > Export logs shares a zip with the logs, app and device info, settings and a summary of recent tasks. See docs/logging.md.
 
+- Voice wake-up checks itself every 30 s: when Android silences the microphone (another app records, or the service was restarted from the background) the notification says so instead of failing quietly, and the log records a heartbeat every 10 minutes. It also restarts with the accessibility service after the app was killed.
+- Settings: higher wake sensitivity (wakes more easily, and more often by mistake), and a "keep wake-up running" row that shows whether battery optimization is on and opens the battery and Huawei/Honor app launch settings.
+
 ### Changed
 - When fetching the model list fails, the message says that model names can be added by hand (some subscription plans have no model list).
 

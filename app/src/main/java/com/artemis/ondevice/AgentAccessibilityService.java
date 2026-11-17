@@ -82,6 +82,13 @@ public class AgentAccessibilityService extends AccessibilityService {
         instance = this;
         getApplication().registerActivityLifecycleCallbacks(screens);
         AppLog.i(AppLog.AGENT, "accessibility service connected");
+        // The system restarts this service after the app is killed; bring voice wake-up back with it.
+        // If Android does not let it use the microphone from here, VoiceService's self-check says so.
+        try {
+            VoiceService.startIfEnabled(this);
+        } catch (RuntimeException e) {
+            AppLog.w(AppLog.VOICE, "voice wake-up not restarted from the accessibility service: " + e.getClass().getSimpleName());
+        }
         main.post(new Runnable() {
             @Override public void run() { applyBubbleSetting(); }
         });

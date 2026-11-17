@@ -41,6 +41,7 @@ final class SpeechEngine {
     private OnlineStream kwsStream;
     /** The wake word in use and its keyword line ("" = the default from keywords.txt). */
     private String wakeWord = WakeWord.DEFAULT, wakeLine = "";
+    private boolean wakeHigh;
     private OnlineStream asrStream;
     private final java.util.Map<String, float[]> cache = new java.util.HashMap<>();
 
@@ -85,12 +86,20 @@ final class SpeechEngine {
         kwsStream = kws.createStream(wakeLine);
     }
 
-    /** Switches to another wake word; {@code line} is from {@link WakeWord#keywordLine}. */
-    void setWakeWord(String phrase, String line) {
+    /**
+     * Switches the wake word; {@code line} is from {@link WakeWord#keywordLine}. High sensitivity
+     * boosts the phrase and lowers its trigger threshold (keywords.txt uses the defaults: score
+     * 1.0, threshold 0.25): it wakes more easily, and more often by mistake.
+     */
+    void setWakeWord(String phrase, String line, boolean high) {
         wakeWord = phrase;
-        wakeLine = WakeWord.DEFAULT.equals(phrase) ? "" : line;
+        wakeHigh = high;
+        if (high) wakeLine = line.replace(" @", " :2.0 #0.12 @");
+        else wakeLine = WakeWord.DEFAULT.equals(phrase) ? "" : line;
         resetWakeWord();
     }
+
+    boolean wakeHigh() { return wakeHigh; }
 
     String wakeWord() { return wakeWord; }
 

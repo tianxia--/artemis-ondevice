@@ -176,6 +176,13 @@ public class SettingsActivity extends AppCompatActivity {
             return false; // let the keyboard close
         });
 
+        MaterialSwitch high = findViewById(R.id.switch_wake_high);
+        high.setChecked(AppSettings.WAKE_HIGH.equals(AppSettings.wakeSensitivity(this)));
+        high.setOnCheckedChangeListener((b, on) -> AppSettings.setWakeSensitivity(this,
+                on ? AppSettings.WAKE_HIGH : AppSettings.WAKE_NORMAL));
+        findViewById(R.id.background_battery).setOnClickListener(v -> openBatterySettings());
+        findViewById(R.id.background_startup).setOnClickListener(v -> openStartupSettings());
+
         findViewById(R.id.voiceprint_enroll).setOnClickListener(v -> {
             if (!Voiceprint.available(getAssets())) {
                 Toast.makeText(this, R.string.voiceprint_no_model, Toast.LENGTH_LONG).show();
@@ -194,6 +201,43 @@ public class SettingsActivity extends AppCompatActivity {
                 .setNegativeButton(R.string.cancel, null)
                 .show());
         renderVoiceprint();
+    }
+
+    /** Battery optimization makes the system stop voice wake-up in the background. */
+    private void renderBackground() {
+        boolean ignoring = getSystemService(android.os.PowerManager.class).isIgnoringBatteryOptimizations(getPackageName());
+        TextView state = findViewById(R.id.background_state);
+        state.setText(ignoring ? R.string.background_ok : R.string.background_needed);
+        state.setTextColor(getColor(ignoring ? R.color.success : R.color.danger));
+        findViewById(R.id.background_battery).setVisibility(ignoring ? View.GONE : View.VISIBLE);
+    }
+
+    private void openBatterySettings() {
+        AppLog.i(AppLog.SETTINGS, "opening battery optimization settings");
+        startFirst(new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                        android.net.Uri.parse("package:" + getPackageName())),
+                new Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS));
+    }
+
+    /** Huawei's and Honor's app launch manager where they exist, otherwise the app's info page. */
+    private void openStartupSettings() {
+        AppLog.i(AppLog.SETTINGS, "opening background settings (" + Build.MANUFACTURER + ")");
+        startFirst(new Intent().setComponent(new android.content.ComponentName("com.huawei.systemmanager",
+                        "com.huawei.systemmanager.startupmgr.ui.StartupNormalAppListActivity")),
+                new Intent().setComponent(new android.content.ComponentName("com.hihonor.systemmanager",
+                        "com.hihonor.systemmanager.startupmgr.ui.StartupNormalAppListActivity")),
+                new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, android.net.Uri.parse("package:" + getPackageName())));
+    }
+
+    private void startFirst(Intent... intents) {
+        for (Intent i : intents) {
+            try {
+                startActivity(i);
+                return;
+            } catch (RuntimeException e) {
+                AppLog.i(AppLog.SETTINGS, "settings page not available: " + e.getClass().getSimpleName());
+            }
+        }
     }
 
     private void renderVoiceprint() {
@@ -271,6 +315,7 @@ public class SettingsActivity extends AppCompatActivity {
         }
 
         renderVoiceModel();
+        renderBackground();
         renderSkills();
         renderLessons();
         renderMcp();

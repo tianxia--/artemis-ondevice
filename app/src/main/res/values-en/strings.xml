@@ -315,4 +315,13 @@
     <string name="export_logs">Export logs</string>
     <string name="export_logs_hint">Packs the last 7 days of logs for troubleshooting. Leaves out what you said, task text, screen content, keys and service addresses.</string>
     <string name="export_logs_failed">Export failed: %1$s</string>
+    <string name="voice_mic_paused">Wake-up paused: the microphone is taken by the system or another app. Open Artemis once to resume.</string>
+    <string name="setting_wake_high">Higher wake sensitivity</string>
+    <string name="setting_wake_high_hint">Wakes more easily, and more often by mistake. Turn it on if it often misses you.</string>
+    <string name="background_label">Keep wake-up running</string>
+    <string name="background_ok">Battery optimization is off</string>
+    <string name="background_needed">Battery optimization is on: the phone may stop voice wake-up in the background.</string>
+    <string name="background_battery">Turn off battery optimization</string>
+    <string name="background_startup">Background settings</string>
+    <string name="background_hint">Huawei and Honor: in Phone Manager > App launch, set Artemis to manage manually and allow background activity. Other brands: allow background running and remove power limits in the app\'s info.</string>
 </resources>
