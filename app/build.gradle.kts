@@ -11,8 +11,8 @@ android {
         // AccessibilityService.takeScreenshot needs Android 11 (API 30).
         minSdk = 30
         targetSdk = 35
-        versionCode = 3
-        versionName = "0.3.0"
+        versionCode = 4
+        versionName = "0.4.0"
         // sherpa-onnx ships native libs for four ABIs; phones are arm64, the emulator x86_64.
         // -Partemis.abi=arm64-v8a builds for one ABI only (smaller APK for quick installs on a device).
         val onlyAbi = providers.gradleProperty("artemis.abi").orNull

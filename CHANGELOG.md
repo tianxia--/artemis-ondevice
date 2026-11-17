@@ -6,22 +6,32 @@ All notable changes to this project are listed here. The format follows
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-17
+
+Voice: say the wake word and talk with a realtime voice model that hands phone work to the agent and reads the result back, with on-phone recognition, a voiceprint and caption correction. Direct answers from the phone's state, clearer Settings and Home, and logs for troubleshooting.
+
+**New: voice calls / 新增：语音通话** — pick a realtime voice model (for example Qwen-Audio realtime) as the voice call model, say "小特小特" and talk: interrupt at any time, confirm sensitive actions by voice, and hear the result. Speech is recognized on the phone and only text is sent. / 选一个实时语音模型（例如 Qwen-Audio realtime）作为通话模型，说「小特小特」就能对话：随时打断、用语音确认敏感操作、听结果播报。语音在手机上识别，只发送文字。
+
+### Upgrading from 0.3.0
+- Settings opens on six groups. The step limit moved to Settings > Models > Model usage and limits, next to the token limits; wake word, voiceprint and voice calls are under Voice; Export logs and Clear task records are under General.
+- The wake word is now 小特小特 instead of 你好阿特. You can set your own (3 to 6 Chinese characters) in Settings > Voice, 你好阿特 included.
+- With a voice call model set, the app downloads a 78 MB sentence recognizer from this project's GitHub release on Wi-Fi (on mobile data only when you tap Download in Settings > Voice and confirm).
+- Logs are written to a file on the phone and kept 7 days (no speech, task text, screen content, keys or addresses).
+
 ### Added
 - Voice calls with a realtime voice model (Qwen-Audio realtime protocol): pick one as the voice call model in Settings and the wake word starts a call. What you say is recognized on the phone and sent as text; the reply streams back as speech. The model hands phone work to the agent, reads out confirmations and questions (your spoken answer is matched by the app, never decided by the model) and tells you the result. An on-screen panel shows a voice-reactive orb, live captions and a hang-up button.
 - During a call: several things in one sentence run as one task in order; adding to a task right after asking merges it, a correction shortly after it starts restarts it, and later requests queue. "停下" stops the task and "结束对话" hangs up, handled on the phone without waiting for the model.
 - Answer first, then use the phone: the agent and voice calls see the phone's state (time, battery, network, Wi-Fi/Bluetooth/airplane, ringer and do not disturb, volume, brightness, screen timeout, storage, device), so "几点了" or "还有多少电" is answered at once without opening an app. Apps are used when the task needs one or names one ("打开时钟看看几点").
 - Voice calls can optionally search the web for live information such as weather (Settings, off by default: with it on, the service sometimes took 17-30 s to answer).
 - Voice calls go to a connected Bluetooth hands-free (car) or headset, then a wired or USB headset, before the phone's loudspeaker; during a task the call shrinks to a small pill that moves with your voice and stays out of the agent's screenshots.
-- Custom wake word (Settings > Run): 3 to 6 Chinese characters, converted with a bundled hanzi-to-pinyin table (`scripts/make-pinyin-table.py`, from pypinyin).
-- Voiceprint (Settings > Run): read three sentences, and voice calls ignore other people talking nearby. Stored only on the phone (3D-Speaker CAM++ model, fetched by `scripts/fetch-voice.sh`).
+- Custom wake word (Settings > Voice): 3 to 6 Chinese characters, converted with a bundled hanzi-to-pinyin table (`scripts/make-pinyin-table.py`, from pypinyin).
+- Voiceprint (Settings > Voice): read three sentences, and voice calls ignore other people talking nearby. Stored only on the phone (3D-Speaker CAM++ model, fetched by `scripts/fetch-voice.sh`).
 - Model services can hold realtime voice models: each model is a task model or a realtime voice model, and a service has an optional realtime voice URL. "Test connection" checks the realtime connection when a service has only voice models.
 - `scripts/regression.py`: one-command regression run on a connected phone or emulator (typed tasks: direct answers, a settings lookup, a named app, a money refusal; voice calls: chat, time, a task read back, a merged addition, stop, goodbye), with a pass/fail table of time, steps and tokens.
 - `scripts/realtime-probe.py` tries a realtime voice endpoint from a Mac; `VoiceTestReceiver` drives voice calls over adb for testing without a microphone.
-
 - Every model call logs where its time went (connect, send, waiting for the service, read), the sizes, and cached and reasoning tokens when the service reports them ("n/a" when it does not, which is not the same as 0). `VoiceTestReceiver cachetest` measures whether the task model's service reuses a repeated prompt prefix.
 - Wake test (Settings, under voice wake-up): every burst of speech counts as an attempt; a wake-up only beeps, and stopping shows the wake rate and each attempt's outcome (by the spotter, the recognizer, both, missed by one syllable, or missed). Each attempt is also logged, never the words.
-- Logs for troubleshooting: every flow writes to a daily file kept 7 days (keys, addresses, e-mail and phone numbers masked; never what you said, task text or screen content), and Settings > Data > Export logs shares a zip with the logs, app and device info, settings and a summary of recent tasks. See docs/logging.md.
-
+- Logs for troubleshooting: every flow writes to a daily file kept 7 days (keys, addresses, e-mail and phone numbers masked; never what you said, task text or screen content), and Settings > General > Export logs shares a zip with the logs, app and device info, settings and a summary of recent tasks. See docs/logging.md.
 - Voice wake-up checks itself every 30 s: when Android silences the microphone (another app records, or the service was restarted from the background) the notification says so instead of failing quietly, and the log records a heartbeat every 10 minutes. It also restarts with the accessibility service after the app was killed.
 - Voice calls recognize each finished sentence again with a bigger offline model (Paraformer small, Chinese, 78 MB). It is not in the APK: the app downloads it from this project's GitHub release `voice-models-1` when voice calls are set up (by itself on Wi-Fi; on mobile data only after Settings warns how many MB are left and that it may cost data charges; a download started on Wi-Fi pauses when the phone leaves Wi-Fi and continues later; Settings shows progress and can delete it), checks its SHA-256 and resumes interrupted downloads: the small streaming model still decides when you stop and whether you talk over the answer, and the bigger one, 60-200 ms per sentence on a phone, gives the text that is sent and shown. Without it the streaming text is used.
 - Voice call captions are corrected: the sentence goes to the voice model at once, and in parallel the task model fixes homophones and near-sounding words with the installed apps' names as context ("高的地图" -> 高德地图); the caption changes about 0.4-0.7 s later. The voice model is also told its input is speech recognition and to read it by sound. Only whether a caption changed is logged.
@@ -122,7 +132,8 @@ First public release.
 - Base URL masked on screen by default and removed from error messages.
 - WeChat, QQ and Alipay are never operated.
 
-[Unreleased]: https://github.com/tianxia--/artemis-ondevice/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/tianxia--/artemis-ondevice/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/tianxia--/artemis-ondevice/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/tianxia--/artemis-ondevice/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/tianxia--/artemis-ondevice/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/tianxia--/artemis-ondevice/releases/tag/v0.1.0
