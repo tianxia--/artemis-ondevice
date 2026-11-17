@@ -532,7 +532,9 @@ final class VoiceCall implements RealtimeSocket.Listener {
             }
             speakingNow = speaking;
             String pending = pendingTask;
-            if (pending != null && !speaking && now - pendingAt > TASK_GRACE_MS) {
+            // Our own voice from the loudspeaker ("好的") is not the user going on: it must not hold the start.
+            boolean userTalking = speaking && now >= playingUntil;
+            if (pending != null && !userTalking && now - pendingAt > TASK_GRACE_MS) {
                 taskStarting = true;
                 pendingTask = null;
                 lastActivity = now;
