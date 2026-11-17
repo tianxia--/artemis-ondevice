@@ -16,7 +16,8 @@ import java.util.Locale;
  * The sentence recognizer of voice calls (Paraformer small, 78 MB) is not in the APK: it is
  * downloaded from this project's GitHub release "voice-models-1" when needed, checked against a
  * pinned SHA-256 and kept in the app's private files. Without it calls use the streaming
- * recognizer's text. Downloads resume where they stopped.
+ * recognizer's text. Downloads resume where they stopped. Mobile data is only used with the
+ * user's go-ahead: a download started without it pauses when the phone leaves Wi-Fi.
  */
 final class SentenceModel {
 
@@ -29,11 +30,17 @@ final class SentenceModel {
     };
     static final long TOTAL_BYTES = 81_828_675L + 75_352L;
 
-    enum State { MISSING, DOWNLOADING, READY, FAILED }
+    enum State { MISSING, DOWNLOADING, PAUSED, READY, FAILED }
 
     private static volatile State state;
     private static volatile long doneBytes;
     private static volatile String error = "";
+    private static volatile boolean allowMetered;
+
+    /** Thrown when the phone leaves Wi-Fi during a download that may not use mobile data. */
+    private static final class PausedException extends IOException {
+        PausedException() { super("left Wi-Fi"); }
+    }
 
     private SentenceModel() {}
 
@@ -52,7 +59,7 @@ final class SentenceModel {
 
     static State state(Context ctx) {
         State s = state;
-        if (s == State.DOWNLOADING || s == State.FAILED) return s;
+        if (s == State.DOWNLOADING || s == State.PAUSED || s == State.FAILED) return s;
         return installed(ctx) ? State.READY : State.MISSING;
     }
 
@@ -63,11 +70,37 @@ final class SentenceModel {
 
     static String error() { return error; }
 
-    /** Starts a download in the background unless installed or already downloading. */
-    static synchronized void download(Context ctx) {
+    /** Bytes still to download, counting what earlier attempts left in the .part files. */
+    static long remainingBytes(Context ctx) {
+        long have = 0;
+        for (String[] f : FILES) {
+            File part = new File(dir(ctx), f[1] + ".part");
+            if (part.isFile()) have += part.length();
+        }
+        return Math.max(0, TOTAL_BYTES - have);
+    }
+
+    /** No network at all. */
+    static boolean offline(Context ctx) {
+        ConnectivityManager cm = ctx.getSystemService(ConnectivityManager.class);
+        return cm == null || cm.getActiveNetwork() == null;
+    }
+
+    /** On mobile data, a metered hotspot, or no network: anything but Wi-Fi-like unmetered. */
+    static boolean metered(Context ctx) {
+        ConnectivityManager cm = ctx.getSystemService(ConnectivityManager.class);
+        return cm == null || cm.getActiveNetwork() == null || cm.isActiveNetworkMetered();
+    }
+
+    /**
+     * Starts a download in the background unless installed or already downloading. Without
+     * {@code mobileData} it pauses as soon as the network becomes metered.
+     */
+    static synchronized void download(Context ctx, boolean mobileData) {
         if (state == State.DOWNLOADING || installed(ctx)) return;
         state = State.DOWNLOADING;
-        doneBytes = 0;
+        allowMetered = mobileData;
+        doneBytes = TOTAL_BYTES - remainingBytes(ctx);
         error = "";
         Context app = ctx.getApplicationContext();
         new Thread(() -> run(app), "artemis-model-download").start();
@@ -78,11 +111,9 @@ final class SentenceModel {
      * needs the user's go-ahead, from Settings.
      */
     static void downloadIfUnmetered(Context ctx) {
-        if (installed(ctx) || state == State.DOWNLOADING) return;
-        ConnectivityManager cm = ctx.getSystemService(ConnectivityManager.class);
-        if (cm == null || cm.getActiveNetwork() == null || cm.isActiveNetworkMetered()) return;
+        if (installed(ctx) || state == State.DOWNLOADING || metered(ctx)) return;
         AppLog.i(AppLog.VOICE, "sentence model missing: downloading it on an unmetered network");
-        download(ctx);
+        download(ctx, false);
     }
 
     static synchronized void delete(Context ctx) {
@@ -98,26 +129,32 @@ final class SentenceModel {
         AppLog.i(AppLog.VOICE, "sentence model download start");
         try {
             File dir = dir(ctx);
-            if (!dir.isDirectory() && !dir.mkdirs()) throw new IOException("cannot create " + dir.getName());
+            if (!dir.isDirectory() && !dir.mkdirs()) throw new IllegalStateException("cannot create " + dir.getName());
             long before = 0;
             for (String[] f : FILES) {
                 File part = new File(dir, f[1] + ".part");
-                fetch(BASE + f[0], part, before);
+                fetch(ctx, BASE + f[0], part, before);
                 String sha = sha256(part);
                 if (!sha.equals(f[2])) {
                     part.delete();
-                    throw new IOException("checksum mismatch for " + f[1]);
+                    throw new IllegalStateException("checksum mismatch for " + f[1]);
                 }
                 before += Long.parseLong(f[3]);
             }
             // Only now, both checked: rename them in (the model last, as installed() looks for it).
             for (int i = 0; i < FILES.length; i++) {
                 File part = new File(dir, FILES[i][1] + ".part"), done = new File(dir, FILES[i][1]);
-                if (!part.renameTo(done)) throw new IOException("cannot rename " + done.getName());
+                if (!part.renameTo(done)) throw new IllegalStateException("cannot rename " + done.getName());
             }
             state = State.READY;
             AppLog.i(AppLog.VOICE, "sentence model downloaded in " + (System.currentTimeMillis() - t0) / 1000 + " s");
         } catch (Exception e) {
+            // Leaving Wi-Fi usually drops the connection before the per-MB check sees it.
+            if (e instanceof PausedException || (!allowMetered && e instanceof IOException && metered(ctx))) {
+                state = State.PAUSED;
+                AppLog.i(AppLog.VOICE, "sentence model download paused: left Wi-Fi at " + percent() + "%");
+                return;
+            }
             error = e.getClass().getSimpleName() + (e.getMessage() == null ? "" : ": " + e.getMessage());
             state = State.FAILED;
             AppLog.w(AppLog.VOICE, "sentence model download failed after " + (System.currentTimeMillis() - t0) / 1000
@@ -126,7 +163,7 @@ final class SentenceModel {
     }
 
     /** Downloads into {@code part}, resuming what is already there; follows GitHub's redirect. */
-    private static void fetch(String url, File part, long before) throws IOException {
+    private static void fetch(Context ctx, String url, File part, long before) throws IOException {
         long have = part.isFile() ? part.length() : 0;
         HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
         c.setConnectTimeout(15_000);
@@ -141,10 +178,15 @@ final class SentenceModel {
             if (!append) have = 0;
             try (InputStream in = c.getInputStream(); FileOutputStream out = new FileOutputStream(part, append)) {
                 byte[] buf = new byte[64 * 1024];
+                long checked = have;
                 for (int n; (n = in.read(buf)) > 0; ) {
                     out.write(buf, 0, n);
                     have += n;
                     doneBytes = before + have;
+                    if (!allowMetered && have - checked >= 1 << 20) { // check the network every MB
+                        checked = have;
+                        if (metered(ctx)) throw new PausedException();
+                    }
                 }
             }
         } finally {

@@ -316,7 +316,13 @@
     <string name="sentence_model_download">下载</string>
     <string name="sentence_model_retry">重试</string>
     <string name="sentence_model_hint">通话时每句话说完后，用它把整句再识别一遍（Paraformer，在手机上运行，不上传声音）。从本项目的 GitHub 下载；连着 Wi-Fi 时会自动下载，用移动数据请点下载。</string>
-    <string name="sentence_model_metered">正在用移动数据，下载约 78 MB，继续吗？</string>
+    <string name="sentence_model_metered_title">没有连接 Wi-Fi</string>
+    <string name="sentence_model_metered">现在用的是移动数据，下载还需要约 %d MB 流量，可能产生流量费用。建议连上 Wi-Fi 再下载：连上后下次通话会自动下载，也可以回到这里下载。</string>
+    <string name="sentence_model_use_data">用流量下载</string>
+    <string name="sentence_model_wait_wifi">等连上 Wi-Fi</string>
+    <string name="sentence_model_offline">没有网络，连上 Wi-Fi 后再下载</string>
+    <string name="sentence_model_paused">已暂停（%d%%）：离开了 Wi-Fi，为了不用流量先停下。连上 Wi-Fi 后下次通话会自动接着下，也可以点继续下载</string>
+    <string name="sentence_model_resume">继续下载</string>
     <string name="confirm_delete_sentence_model">删除整句识别模型？通话会改用小模型识别，以后可以再下载。</string>
     <string-array name="voiceprint_sentences">
         <item>今天天气不错，我想出去走一走</item>

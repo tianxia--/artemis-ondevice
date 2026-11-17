@@ -223,15 +223,18 @@ public class SettingsActivity extends AppCompatActivity {
     /** Voice calls' sentence recognizer, downloaded on demand (SentenceModel). */
     private void setupSentenceModel() {
         findViewById(R.id.sentence_model_download).setOnClickListener(v -> {
-            android.net.ConnectivityManager cm = getSystemService(android.net.ConnectivityManager.class);
-            if (cm != null && cm.isActiveNetworkMetered()) {
+            if (SentenceModel.offline(this)) {
+                Toast.makeText(this, R.string.sentence_model_offline, Toast.LENGTH_LONG).show();
+            } else if (SentenceModel.metered(this)) {
+                long mb = Math.max(1, Math.round(SentenceModel.remainingBytes(this) / 1048576.0));
                 new MaterialAlertDialogBuilder(this)
-                        .setMessage(R.string.sentence_model_metered)
-                        .setPositiveButton(R.string.sentence_model_download, (d, w) -> startSentenceDownload())
-                        .setNegativeButton(R.string.cancel, null)
+                        .setTitle(R.string.sentence_model_metered_title)
+                        .setMessage(getString(R.string.sentence_model_metered, mb))
+                        .setPositiveButton(R.string.sentence_model_use_data, (d, w) -> startSentenceDownload(true))
+                        .setNegativeButton(R.string.sentence_model_wait_wifi, null)
                         .show();
             } else {
-                startSentenceDownload();
+                startSentenceDownload(false);
             }
         });
         findViewById(R.id.sentence_model_delete).setOnClickListener(v -> new MaterialAlertDialogBuilder(this)
@@ -245,9 +248,9 @@ public class SettingsActivity extends AppCompatActivity {
         renderSentenceModel();
     }
 
-    private void startSentenceDownload() {
-        AppLog.i(AppLog.SETTINGS, "sentence model download requested");
-        SentenceModel.download(this);
+    private void startSentenceDownload(boolean mobileData) {
+        AppLog.i(AppLog.SETTINGS, "sentence model download requested" + (mobileData ? " on mobile data" : ""));
+        SentenceModel.download(this, mobileData);
         renderSentenceModel();
     }
 
@@ -265,6 +268,9 @@ public class SettingsActivity extends AppCompatActivity {
             case READY:
                 state.setText(R.string.sentence_model_ready);
                 break;
+            case PAUSED:
+                state.setText(getString(R.string.sentence_model_paused, SentenceModel.percent()));
+                break;
             case FAILED:
                 state.setText(getString(R.string.sentence_model_failed, SentenceModel.error()));
                 break;
@@ -272,8 +278,10 @@ public class SettingsActivity extends AppCompatActivity {
                 state.setText(R.string.sentence_model_missing);
                 break;
         }
-        download.setText(s == SentenceModel.State.FAILED ? R.string.sentence_model_retry : R.string.sentence_model_download);
-        download.setVisibility(s == SentenceModel.State.MISSING || s == SentenceModel.State.FAILED ? View.VISIBLE : View.GONE);
+        download.setText(s == SentenceModel.State.FAILED ? R.string.sentence_model_retry
+                : s == SentenceModel.State.PAUSED ? R.string.sentence_model_resume : R.string.sentence_model_download);
+        download.setVisibility(s == SentenceModel.State.MISSING || s == SentenceModel.State.PAUSED
+                || s == SentenceModel.State.FAILED ? View.VISIBLE : View.GONE);
         findViewById(R.id.sentence_model_delete).setVisibility(s == SentenceModel.State.READY ? View.VISIBLE : View.GONE);
         state.removeCallbacks(sentenceProgress);
         if (s == SentenceModel.State.DOWNLOADING) state.postDelayed(sentenceProgress, 500);

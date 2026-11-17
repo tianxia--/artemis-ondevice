@@ -312,7 +312,13 @@
     <string name="sentence_model_download">Download</string>
     <string name="sentence_model_retry">Try again</string>
     <string name="sentence_model_hint">In calls, each finished sentence is recognized again with it (Paraformer, runs on the phone, no audio is uploaded). Downloaded from this project\'s GitHub; on Wi-Fi it downloads by itself, on mobile data tap Download.</string>
-    <string name="sentence_model_metered">You are on mobile data. Download about 78 MB?</string>
+    <string name="sentence_model_metered_title">Not on Wi-Fi</string>
+    <string name="sentence_model_metered">You are on mobile data. About %d MB is left to download, which may cost data charges. Better to download on Wi-Fi: the next call downloads it by itself there, or download it here.</string>
+    <string name="sentence_model_use_data">Use mobile data</string>
+    <string name="sentence_model_wait_wifi">Wait for Wi-Fi</string>
+    <string name="sentence_model_offline">No network. Connect to Wi-Fi and try again</string>
+    <string name="sentence_model_paused">Paused at %d%%: the phone left Wi-Fi, so it stopped to save mobile data. The next call on Wi-Fi continues it, or tap Continue</string>
+    <string name="sentence_model_resume">Continue</string>
     <string name="confirm_delete_sentence_model">Delete the sentence recognizer? Calls go back to the small recognizer; you can download it again later.</string>
     <string-array name="voiceprint_sentences">
         <item>今天天气不错，我想出去走一走</item>
