@@ -220,6 +220,66 @@ public class SettingsActivity extends AppCompatActivity {
                 .setNegativeButton(R.string.cancel, null)
                 .show());
         renderVoiceprint();
+        setupSentenceModel();
+    }
+
+    /** Voice calls' sentence recognizer, downloaded on demand (SentenceModel). */
+    private void setupSentenceModel() {
+        findViewById(R.id.sentence_model_download).setOnClickListener(v -> {
+            android.net.ConnectivityManager cm = getSystemService(android.net.ConnectivityManager.class);
+            if (cm != null && cm.isActiveNetworkMetered()) {
+                new MaterialAlertDialogBuilder(this)
+                        .setMessage(R.string.sentence_model_metered)
+                        .setPositiveButton(R.string.sentence_model_download, (d, w) -> startSentenceDownload())
+                        .setNegativeButton(R.string.cancel, null)
+                        .show();
+            } else {
+                startSentenceDownload();
+            }
+        });
+        findViewById(R.id.sentence_model_delete).setOnClickListener(v -> new MaterialAlertDialogBuilder(this)
+                .setMessage(R.string.confirm_delete_sentence_model)
+                .setPositiveButton(R.string.delete, (d, w) -> {
+                    SentenceModel.delete(this);
+                    renderSentenceModel();
+                })
+                .setNegativeButton(R.string.cancel, null)
+                .show());
+        renderSentenceModel();
+    }
+
+    private void startSentenceDownload() {
+        AppLog.i(AppLog.SETTINGS, "sentence model download requested");
+        SentenceModel.download(this);
+        renderSentenceModel();
+    }
+
+    private final Runnable sentenceProgress = this::renderSentenceModel;
+
+    /** Shows the state; while downloading it refreshes itself twice a second. */
+    private void renderSentenceModel() {
+        TextView state = findViewById(R.id.sentence_model_state);
+        com.google.android.material.button.MaterialButton download = findViewById(R.id.sentence_model_download);
+        SentenceModel.State s = SentenceModel.state(this);
+        switch (s) {
+            case DOWNLOADING:
+                state.setText(getString(R.string.sentence_model_downloading, SentenceModel.percent()));
+                break;
+            case READY:
+                state.setText(R.string.sentence_model_ready);
+                break;
+            case FAILED:
+                state.setText(getString(R.string.sentence_model_failed, SentenceModel.error()));
+                break;
+            default:
+                state.setText(R.string.sentence_model_missing);
+                break;
+        }
+        download.setText(s == SentenceModel.State.FAILED ? R.string.sentence_model_retry : R.string.sentence_model_download);
+        download.setVisibility(s == SentenceModel.State.MISSING || s == SentenceModel.State.FAILED ? View.VISIBLE : View.GONE);
+        findViewById(R.id.sentence_model_delete).setVisibility(s == SentenceModel.State.READY ? View.VISIBLE : View.GONE);
+        state.removeCallbacks(sentenceProgress);
+        if (s == SentenceModel.State.DOWNLOADING) state.postDelayed(sentenceProgress, 500);
     }
 
     private void showWakeTestResult() {
@@ -305,6 +365,13 @@ public class SettingsActivity extends AppCompatActivity {
     protected void onResume() {
         super.onResume();
         render();
+        renderSentenceModel();
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        findViewById(R.id.sentence_model_state).removeCallbacks(sentenceProgress);
     }
 
     private void setActive(String provider, String model) {
@@ -392,6 +459,10 @@ public class SettingsActivity extends AppCompatActivity {
             String[] c = choices.get(position);
             try {
                 ProviderStore.setVoice(this, c == null ? null : c[0], c == null ? null : c[1]);
+                if (c != null) {
+                    SentenceModel.downloadIfUnmetered(this); // calls will need it; mobile data waits for the button
+                    renderSentenceModel();
+                }
             } catch (Exception e) {
                 Toast.makeText(this, e.getMessage(), Toast.LENGTH_LONG).show();
             }

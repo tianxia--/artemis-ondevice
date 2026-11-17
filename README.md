@@ -33,7 +33,8 @@ state in one step, without opening an app (right).
   </tr>
 </table>
 
-In calls, each finished sentence is recognized again by a bigger on-phone model (Paraformer), and
+In calls, each finished sentence is recognized again by a bigger on-phone model (Paraformer,
+78 MB, downloaded when you set up voice calls rather than bundled), and
 the caption is then corrected by your task model with your installed apps' names as context
 ("高的地图" becomes 高德地图) without slowing the answer.
 

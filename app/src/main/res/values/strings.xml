@@ -309,6 +309,16 @@
     <string name="voiceprint_saved">声纹已保存</string>
     <string name="voiceprint_no_model">声纹模型没有打包（scripts/fetch-voice.sh）</string>
     <string name="confirm_delete_voiceprint">删除声纹？删除后语音通话会听所有人的声音。</string>
+    <string name="sentence_model_label">整句识别模型（让通话识别更准）</string>
+    <string name="sentence_model_missing">还没有下载（约 78 MB）。没有它时用小模型识别，准确率低一些</string>
+    <string name="sentence_model_downloading">正在下载 %d%%</string>
+    <string name="sentence_model_ready">已下载，通话中使用</string>
+    <string name="sentence_model_failed">下载失败：%s。可以再试一次，会接着下载</string>
+    <string name="sentence_model_download">下载</string>
+    <string name="sentence_model_retry">重试</string>
+    <string name="sentence_model_hint">通话时每句话说完后，用它把整句再识别一遍（Paraformer，在手机上运行，不上传声音）。从本项目的 GitHub 下载；连着 Wi-Fi 时会自动下载，用移动数据请点下载。</string>
+    <string name="sentence_model_metered">正在用移动数据，下载约 78 MB，继续吗？</string>
+    <string name="confirm_delete_sentence_model">删除整句识别模型？通话会改用小模型识别，以后可以再下载。</string>
     <string-array name="voiceprint_sentences">
         <item>今天天气不错，我想出去走一走</item>
         <item>打开设置，帮我看看手机还有多少电</item>

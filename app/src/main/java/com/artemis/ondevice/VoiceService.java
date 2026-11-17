@@ -149,6 +149,11 @@ public class VoiceService extends Service implements Runnable {
                 e0.loadRest(getAssets(), PROMPT, OK, CANCELLED, CALL_FAILED, blocked);
                 if (e0.isReady()) AppLog.i(AppLog.VOICE, "other voice models loaded in " + (System.currentTimeMillis() - t1) + " ms");
                 else AppLog.w(AppLog.VOICE, "voice models failed to load");
+                // Voice calls' sentence recognizer is downloaded, not packaged (SentenceModel).
+                if (ProviderStore.getVoice(this) != null) {
+                    SentenceModel.downloadIfUnmetered(this);
+                    e0.loadSentenceRecognizer(SentenceModel.model(this), SentenceModel.tokens(this));
+                }
             }, "artemis-voice-load");
             loader.start();
             mic = new AudioRecord(MediaRecorder.AudioSource.VOICE_RECOGNITION, SpeechEngine.SAMPLE_RATE,

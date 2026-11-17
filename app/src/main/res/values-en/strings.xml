@@ -305,6 +305,16 @@
     <string name="voiceprint_saved">Voiceprint saved</string>
     <string name="voiceprint_no_model">The voiceprint model is not packaged (scripts/fetch-voice.sh)</string>
     <string name="confirm_delete_voiceprint">Delete the voiceprint? Voice calls will then listen to everyone.</string>
+    <string name="sentence_model_label">Sentence recognizer (more accurate calls)</string>
+    <string name="sentence_model_missing">Not downloaded yet (about 78 MB). Without it calls use the small recognizer, which makes more mistakes</string>
+    <string name="sentence_model_downloading">Downloading %d%%</string>
+    <string name="sentence_model_ready">Downloaded, used in calls</string>
+    <string name="sentence_model_failed">Download failed: %s. Try again; it continues where it stopped</string>
+    <string name="sentence_model_download">Download</string>
+    <string name="sentence_model_retry">Try again</string>
+    <string name="sentence_model_hint">In calls, each finished sentence is recognized again with it (Paraformer, runs on the phone, no audio is uploaded). Downloaded from this project\'s GitHub; on Wi-Fi it downloads by itself, on mobile data tap Download.</string>
+    <string name="sentence_model_metered">You are on mobile data. Download about 78 MB?</string>
+    <string name="confirm_delete_sentence_model">Delete the sentence recognizer? Calls go back to the small recognizer; you can download it again later.</string>
     <string-array name="voiceprint_sentences">
         <item>今天天气不错，我想出去走一走</item>
         <item>打开设置，帮我看看手机还有多少电</item>

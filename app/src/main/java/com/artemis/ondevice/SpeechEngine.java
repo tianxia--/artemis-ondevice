@@ -42,8 +42,11 @@ final class SpeechEngine {
     // Loaded after the wake word spotter, on another thread (loadRest): wake-up listens within a
     // second instead of after all models (once 85 s on a throttled phone). Use only after awaitReady.
     private OnlineRecognizer asr;
-    /** Recognizes a whole finished sentence, more accurately than asr; null when not packaged. */
-    private OfflineRecognizer sentenceAsr;
+    /** Recognizes a whole finished sentence, more accurately than asr; null until downloaded and loaded. */
+    private volatile OfflineRecognizer sentenceAsr;
+    private final Object sentenceLock = new Object();
+    /** Set by release (under sentenceLock): a late load must not start after it. */
+    private boolean released, sentenceLoading;
     private OfflineTts tts;
     private final java.util.concurrent.CountDownLatch rest = new java.util.concurrent.CountDownLatch(1);
     private volatile Exception restError;
@@ -72,7 +75,6 @@ final class SpeechEngine {
             asr = new OnlineRecognizer(am, asrConfig());
             asrStream = asr.createStream("");
             tts = new OfflineTts(am, ttsConfig());
-            sentenceAsr = exists(am, SENTENCE_MODEL) ? new OfflineRecognizer(am, sentenceConfig()) : null;
             speaker = Voiceprint.available(am) ? Voiceprint.extractor(am) : null;
             vad = wakeVad(am);
             prepare(phrases);
@@ -205,18 +207,50 @@ final class SpeechEngine {
     boolean hasSentenceRecognizer() { return sentenceAsr != null; }
 
     /**
+     * Loads the downloaded sentence recognizer ({@link SentenceModel}) if it is there and not
+     * loaded yet; takes a few seconds, so call it off the audio thread. Safe to call repeatedly.
+     */
+    void loadSentenceRecognizer(java.io.File model, java.io.File tokens) {
+        synchronized (sentenceLock) {
+            if (sentenceAsr != null || released || sentenceLoading || !model.isFile() || !tokens.isFile()) return;
+            sentenceLoading = true;
+        }
+        // Built outside the lock: a call's audio thread must not wait seconds for it.
+        long t0 = System.currentTimeMillis();
+        OfflineRecognizer r = null;
+        try {
+            r = new OfflineRecognizer(null, sentenceConfig(model.getPath(), tokens.getPath()));
+            AppLog.i(AppLog.VOICE, "sentence recognizer loaded in " + (System.currentTimeMillis() - t0) + " ms");
+        } catch (Exception | Error e) {
+            AppLog.w(AppLog.VOICE, "sentence recognizer failed to load: " + e.getClass().getSimpleName());
+        }
+        synchronized (sentenceLock) {
+            sentenceLoading = false;
+            if (released) {
+                if (r != null) r.release();
+            } else {
+                sentenceAsr = r;
+            }
+        }
+    }
+
+    /**
      * Recognizes a finished sentence (16 kHz) with the bigger offline model; null without it.
-     * Thread-safe enough for one caller: each call has its own stream.
+     * One caller at a time (the call's audio thread); each call has its own stream.
      */
     String recognizeSentence(float[] samples) {
-        if (sentenceAsr == null) return null;
-        OfflineStream s = sentenceAsr.createStream();
-        try {
-            s.acceptWaveform(samples, SAMPLE_RATE);
-            sentenceAsr.decode(s);
-            return sentenceAsr.getResult(s).getText().trim();
-        } finally {
-            s.release();
+        if (sentenceAsr == null) return null; // not loaded (yet): do not wait for the lock
+        synchronized (sentenceLock) {
+            OfflineRecognizer r = sentenceAsr;
+            if (r == null) return null;
+            OfflineStream s = r.createStream();
+            try {
+                s.acceptWaveform(samples, SAMPLE_RATE);
+                r.decode(s);
+                return r.getResult(s).getText().trim();
+            } finally {
+                s.release();
+            }
         }
     }
 
@@ -290,7 +324,11 @@ final class SpeechEngine {
         kws.release();
         if (asrStream != null) asrStream.release();
         if (asr != null) asr.release();
-        if (sentenceAsr != null) sentenceAsr.release();
+        synchronized (sentenceLock) {
+            released = true;
+            if (sentenceAsr != null) sentenceAsr.release();
+            sentenceAsr = null;
+        }
         if (speaker != null) speaker.release();
         if (vad != null) vad.release();
         if (tts != null) tts.release();
@@ -343,24 +381,13 @@ final class SpeechEngine {
         return c;
     }
 
-    private static final String SENTENCE_MODEL = DIR + "sentence/model.onnx";
-
-    private static boolean exists(AssetManager am, String path) {
-        try {
-            am.open(path).close();
-            return true;
-        } catch (IOException e) {
-            return false;
-        }
-    }
-
-    /** Paraformer small (Chinese): non-streaming, used once a sentence is finished. */
-    private static OfflineRecognizerConfig sentenceConfig() {
+    /** Paraformer small (Chinese): non-streaming, used once a sentence is finished. Paths are files, not assets. */
+    private static OfflineRecognizerConfig sentenceConfig(String model, String tokens) {
         OfflineParaformerModelConfig p = new OfflineParaformerModelConfig();
-        p.setModel(SENTENCE_MODEL);
+        p.setModel(model);
         OfflineModelConfig m = new OfflineModelConfig();
         m.setParaformer(p);
-        m.setTokens(DIR + "sentence/tokens.txt");
+        m.setTokens(tokens);
         m.setModelType("paraformer");
         m.setNumThreads(2);
         OfflineRecognizerConfig c = new OfflineRecognizerConfig();

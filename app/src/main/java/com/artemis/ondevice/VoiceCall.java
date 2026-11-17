@@ -247,6 +247,17 @@ final class VoiceCall implements RealtimeSocket.Listener {
                 + (fullDuplex ? "full duplex (echo canceller on)" : "half duplex (no echo canceller)"));
         current = this;
         captions = CaptionFixer.create(ctx);
+        if (!engine.hasSentenceRecognizer()) {
+            // Downloaded since the voice service started, or not yet (then on Wi-Fi only): the
+            // streaming text is used until it is loaded.
+            SentenceModel.downloadIfUnmetered(ctx);
+            if (SentenceModel.installed(ctx)) {
+                new Thread(() -> engine.loadSentenceRecognizer(SentenceModel.model(ctx), SentenceModel.tokens(ctx)),
+                        "artemis-sentence-load").start();
+            } else {
+                AppLog.i(AppLog.CALL, "no sentence recognizer yet: using the streaming text");
+            }
+        }
         try {
             talk();
         } finally {
