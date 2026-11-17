@@ -147,7 +147,7 @@
 
     <!-- Voice control (VoiceService) -->
     <string name="setting_voice">Voice wake-up</string>
-    <string name="setting_voice_hint">Say the wake word (\"你好阿特\" by default, change it below) to wake it, then say the task (Mandarin only). Recognition runs offline on the phone; the microphone stays on while enabled.</string>
+    <string name="setting_voice_hint">Say the wake word (\"小特小特\" by default, change it below) to wake it, then say the task (Mandarin only). Recognition runs offline on the phone; the microphone stays on while enabled.</string>
     <string name="voice_permission_denied">No microphone permission, so voice wake-up cannot be turned on</string>
     <string name="channel_voice">Voice wake-up</string>
     <string name="voice_title">Voice wake-up is on</string>

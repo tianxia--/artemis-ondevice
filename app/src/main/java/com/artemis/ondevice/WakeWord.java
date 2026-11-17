@@ -14,12 +14,16 @@ import java.util.Set;
 
 /**
  * The wake word, which the user may change in Settings. The keyword spotter takes a phrase as
- * pinyin tokens (initial + tonal final, "n ǐ h ǎo ā t è @你好阿特"); {@link #keywordLine} turns
+ * pinyin tokens (initial + tonal final, "x iǎo t è x iǎo t è @小特小特"); {@link #keywordLine} turns
  * Chinese into that, from the bundled hanzi table (assets/pinyin.txt, scripts/make-pinyin-table.py).
  */
 final class WakeWord {
 
-    static final String DEFAULT = "你好阿特";
+    /**
+     * 小特小特: every syllable starts with a clear consonant and no tones change (the earlier 你好阿特
+     * has a soft 阿 that gets swallowed and a 你好 said as ní hǎo); a wake test went 67% -> 78%.
+     */
+    static final String DEFAULT = "小特小特";
     static final int MIN_CHARS = 3, MAX_CHARS = 6;
     private static final String[] INITIALS = {"zh", "ch", "sh", "b", "p", "m", "f", "d", "t", "n", "l", "g",
             "k", "h", "j", "q", "x", "r", "z", "c", "s", "y", "w"};

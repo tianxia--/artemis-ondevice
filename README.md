@@ -90,7 +90,7 @@ history and only the latest screenshot is sent.
   Cursor, can give the phone tasks or operate it directly over MCP; see [docs/mcp.md](docs/mcp.md).
 - **Language**: Settings > Language switches the app between Simplified Chinese and English, or
   follows the system.
-- **Voice wake-up** (optional, Mandarin only): say "你好阿特", then say the task. Wake word,
+- **Voice wake-up** (optional, Mandarin only): say "小特小特" (changeable), then say the task. Wake word,
   recognition and speech run offline on the phone; see [docs/voice-design.md](docs/voice-design.md).
 - **Voice calls** (optional, online): pick a realtime voice model (for example Qwen-Audio realtime)
   as the voice call model, and the wake word starts a call instead: talk back and forth, interrupt

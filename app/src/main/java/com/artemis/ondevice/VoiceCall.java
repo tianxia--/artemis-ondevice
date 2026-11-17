@@ -77,7 +77,7 @@ final class VoiceCall implements RealtimeSocket.Listener {
     private static final String NOTICE = "[系统通知] ";
 
     private static final String INSTRUCTIONS =
-            "你是手机助手「阿特」，在用户的手机上通过语音和用户对话。说话简短、口语化，一般一两句话；"
+            "你是手机助手「小特」，在用户的手机上通过语音和用户对话。说话简短、口语化，一般一两句话；"
                     + "用户用什么语言就用什么语言回答。\n"
                     + "0. 先用最快的办法：常识、计算、翻译直接回答；时间、日期、电量、网络、Wi-Fi/蓝牙/飞行模式开关、音量、勿扰、"
                     + "亮度、屏幕超时、存储、手机型号这类问题，用用户每句话后面附带的「手机状态」直接回答；天气、新闻等实时的公开信息用联网搜索"

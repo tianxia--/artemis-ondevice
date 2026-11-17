@@ -151,7 +151,7 @@
 
     <!-- Voice control (VoiceService) -->
     <string name="setting_voice">语音唤醒</string>
-    <string name="setting_voice_hint">说唤醒词（默认「你好阿特」，下面可以改）唤醒，然后说出任务。识别在手机上离线完成，开启后麦克风常开。</string>
+    <string name="setting_voice_hint">说唤醒词（默认「小特小特」，下面可以改）唤醒，然后说出任务。识别在手机上离线完成，开启后麦克风常开。</string>
     <string name="voice_permission_denied">没有麦克风权限，无法开启语音唤醒</string>
     <string name="channel_voice">语音唤醒</string>
     <string name="voice_title">语音唤醒已开启</string>

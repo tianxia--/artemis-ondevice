@@ -405,7 +405,9 @@ public class VoiceService extends Service implements Runnable {
             return false;
         }
         wakePreRoll.add(samples);
-        if (wakePreRoll.size() > 3) wakePreRoll.poll();
+        // 0.6 s before the speech detector fires: it reacts 0.2-0.3 s late, and 0.3 s of pre-roll
+        // left tries recognized as 0-1 syllables (the first one cut off).
+        if (wakePreRoll.size() > 6) wakePreRoll.poll();
         if (!wakeSpeech) return false;
         wakeSpeech = false;
         if (wakeMatched) {
