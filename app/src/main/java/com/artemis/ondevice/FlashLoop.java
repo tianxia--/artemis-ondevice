@@ -134,12 +134,18 @@ final class FlashLoop {
             run.status = RunRecord.FAILED;
             return;
         }
+        long s0 = System.currentTimeMillis();
         earlierNotes = earlierNotes();
+        long s1 = System.currentTimeMillis();
         taskLanguage = textLanguage(run.task);
         namedApps = Actions.appsNamedIn(ctx, run.task);
+        long s2 = System.currentTimeMillis();
         allLessons = ExperienceStore.list(ctx);
         generalLessons = ExperienceStore.general(ctx);
         for (Experience e : generalLessons) run.lessonIds.add(e.id);
+        AppLog.i(AppLog.AGENT, "run " + run.id + " setup: " + (System.currentTimeMillis() - run.startedAt) + " ms after start"
+                + " (earlier notes " + (s1 - s0) + " ms, app names " + (s2 - s1) + " ms, lessons "
+                + (System.currentTimeMillis() - s2) + " ms)");
         try {
             if (skill != null) nudge = replay();
             // Replayed steps cost no model call and do not count against the step cap.
@@ -154,7 +160,8 @@ final class FlashLoop {
                     break;
                 }
                 boolean finalTurn = run.maxSteps > 0 && turn == run.maxSteps;
-                waitWhilePaused();
+                long held = waitWhilePaused();
+                if (held > 0) AppLog.i(AppLog.AGENT, "step " + step + " held " + held + " ms (our screen or the bubble panel in front)");
                 long t0 = System.currentTimeMillis();
                 RunState.phase(RunState.Phase.OBSERVING);
                 Observation obs = Observation.capture(a11y);
@@ -526,9 +533,11 @@ final class FlashLoop {
                 + "**Objective: " + run.task + "**\n\n"
                 + "# 1. COGNITIVE PROTOCOL\n"
                 + "In every turn, think through observation, planning and action in that order. Before calling a tool, "
-                + "write one short paragraph of connected prose reflecting those three phases; it is kept in the execution history.\n"
+                + "write one or two short sentences covering those three phases (what the screen shows, what you do next "
+                + "and why); they are kept in the execution history. Keep them short: every word costs the user time.\n"
                 + "- Turn 1 only: briefly decompose the objective into its parts and record them with `update_memory` "
-                + "(the first part under `next`).\n\n"
+                + "(the first part under `next`), and in the same turn already take the first action (e.g. `open_app`) "
+                + "or `finish`: a turn with only `update_memory` wastes a round trip.\n\n"
                 + "# 1b. ANSWER DIRECTLY WHEN YOU CAN\n"
                 + "Each turn shows PHONE STATUS, read straight from the system: time, date, weekday, battery, network, "
                 + "Wi-Fi/Bluetooth/airplane on or off, ringer, do not disturb, volume, brightness, screen timeout, storage, "

@@ -116,8 +116,10 @@ public class AgentService extends Service implements RunState.Listener {
                         return;
                     }
                     String key = ProviderStore.apiKey(ctx, provider.id);
-                    // The screen that started the run is still animating away; don't capture it.
-                    Thread.sleep(START_SETTLE_MS);
+                    // The screen that started the run is still animating away; don't capture it. Not needed
+                    // when the run started elsewhere (a voice call, MCP) and none of our screens is in front.
+                    AgentAccessibilityService a11y = AgentAccessibilityService.get();
+                    if (a11y == null || getPackageName().equals(a11y.currentPackage())) Thread.sleep(START_SETTLE_MS);
                     long limit = AppSettings.dailyTokenLimit(ctx);
                     long today = UsageStore.todayTokens(ctx);
                     if (limit > 0 && today >= limit) {
