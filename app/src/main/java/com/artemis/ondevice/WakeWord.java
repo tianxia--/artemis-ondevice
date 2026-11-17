@@ -155,19 +155,35 @@ final class WakeWord {
 
     static boolean soundsLike(Context ctx, String heard, String phrase) {
         java.util.List<String> h = toneless(ctx, heard), w = toneless(ctx, phrase);
-        if (w.isEmpty() || h.size() < w.size()) return false;
+        if (w.isEmpty() || h.isEmpty()) return false;
         int allowed = w.size() >= 4 ? 1 : 0;
-        for (int start = 0; start + w.size() <= h.size(); start++) {
-            int diff = 0;
-            for (int i = 0; i < w.size() && diff <= allowed; i++) {
-                String a = h.get(start + i), b = w.get(i);
-                if (a.equals(b)) continue;
-                // A different syllable only counts as a slip if it rhymes (啊/阿/呀, 特/德), not 小 for 阿.
-                diff += finalOf(a).equals(finalOf(b)) ? 1 : allowed + 1;
+        // The last syllable is the distinctive one (特 in 你好阿特): it, or a rhyme of it, must be
+        // there, so a plain "你好啊" does not wake it.
+        String last = finalOf(w.get(w.size() - 1));
+        boolean hasLast = false;
+        for (String x : h) hasLast |= finalOf(x).equals(last);
+        return hasLast && distance(h, w) <= allowed;
+    }
+
+    /**
+     * Fewest edits to find the wake word inside the heard syllables: a dropped or an extra syllable
+     * costs 1 (the recognizer often swallows a soft 阿), a different syllable 1 if it rhymes, else
+     * more than allowed.
+     */
+    private static int distance(java.util.List<String> h, java.util.List<String> w) {
+        int n = w.size(), m = h.size();
+        int[][] d = new int[n + 1][m + 1];
+        for (int i = 1; i <= n; i++) d[i][0] = i;
+        for (int i = 1; i <= n; i++) {
+            for (int j = 1; j <= m; j++) {
+                String a = w.get(i - 1), b = h.get(j - 1);
+                int sub = a.equals(b) ? 0 : finalOf(a).equals(finalOf(b)) ? 1 : 9;
+                d[i][j] = Math.min(d[i - 1][j - 1] + sub, Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1));
             }
-            if (diff <= allowed) return true;
         }
-        return false;
+        int best = Integer.MAX_VALUE;
+        for (int j = 0; j <= m; j++) best = Math.min(best, d[n][j]); // free start and end in the heard text
+        return best;
     }
 
     private static String finalOf(String syllable) {

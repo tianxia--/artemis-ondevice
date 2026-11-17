@@ -31,7 +31,7 @@ All notable changes to this project are listed here. The format follows
 - When fetching the model list fails, the message says that model names can be added by hand (some subscription plans have no model list).
 
 ### Fixed
-- Voice wake-up has a second path: while someone speaks, up to 4 s are run through the offline speech recognizer and compared with the wake word by sound (toneless pinyin, one rhyming slip allowed for 4+ characters, so 你好啊特 and 你好阿德 count). The small spotter alone missed the wake word often. The log says which path woke it; what was said is not logged.
+- Voice wake-up has a second path: while someone speaks, up to 4 s are run through the offline speech recognizer and compared with the wake word by sound (toneless pinyin, one dropped, extra or rhyming syllable allowed for 4+ characters, as long as the last syllable or a rhyme of it is there: 你好特, 你好啊特 and 你好阿德 count, 你好啊 does not). The small spotter alone missed the wake word often. The log says which path woke it; what was said is not logged.
 - The wake word was often missed: it is now also registered as spoken (third-tone sandhi: 你好 is said ní hǎo, not nǐ hǎo), for custom wake words too, and normal sensitivity is a bit easier (boost 1.5, threshold 0.20 instead of the stock 1.0 / 0.25; high is 2.0 / 0.12).
 - Voice wake-up listens within a second of starting: the wake word model loads first and the others in the background (all at once took 10-25 s, once 85 s on a throttled phone, and wake words in that time were missed). The notification says it is getting ready until then.
 - Tasks started by voice stay on the screen where they ended instead of opening the app's result page; the result is spoken.
