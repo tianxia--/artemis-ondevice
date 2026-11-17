@@ -25,6 +25,7 @@ All notable changes to this project are listed here. The format follows
 - Settings: higher wake sensitivity (wakes more easily, and more often by mistake), and a "keep wake-up running" row that shows whether battery optimization is on and opens the battery and Huawei/Honor app launch settings.
 
 ### Changed
+- Less output per step: no memory update in the turn that finishes, and optional arguments (a target description next to an index, `commits`, `summary`) left out unless needed. Final steps output 117-133 tokens instead of 195-203. Each step's log now shows how many characters the reasoning and each tool's arguments took.
 - Faster tasks: the first turn plans and acts together instead of only planning, each turn's reasoning is one or two sentences, and the start pause is skipped when the run did not start from our own screen. On three test tasks: 24.2 s instead of 27.5 s, 23.8 s instead of 44.8 s, 12.5 s instead of 14.2 s.
 - When fetching the model list fails, the message says that model names can be added by hand (some subscription plans have no model list).
 

@@ -286,8 +286,9 @@ final class FlashLoop {
                 RunState.stepAdded();
                 saveProgress();
                 AppLog.i(AppLog.AGENT, String.format(Locale.US,
-                        "#%d obs %dms llm %dms act %dms | tok %d/%d | %s", step, rec.obsMs, rec.llmMs, rec.actMs,
-                        rec.promptTokens, rec.completionTokens, actionNames(r.toolCalls)));
+                        "#%d obs %dms llm %dms act %dms | tok %d/%d | %s | output chars: text %d, %s", step, rec.obsMs,
+                        rec.llmMs, rec.actMs, rec.promptTokens, rec.completionTokens, actionNames(r.toolCalls),
+                        rec.reasoning.length(), argSizes(r.toolCalls)));
 
                 remember(rec);
                 if (finished) break;
@@ -547,7 +548,9 @@ final class FlashLoop {
                 + "or explicitly asks to open or use an app (e.g. \"打开时钟看看几点\"): then do it in that app. "
                 + "PHONE STATUS is read from the system and is exact: do not double-check it in an app, even if a lesson "
                 + "below says where an app shows that value. Give such an answer through `finish`, never as plain text: "
-                + "a turn without a tool call wastes a round trip.\n\n"
+                + "a turn without a tool call wastes a round trip.\n"
+                + "Every word you output costs the user time: no `update_memory` in the turn that calls `finish` (the "
+                + "task ends), and leave out optional arguments you do not need.\n\n"
                 + "# 2. DYNAMIC ENVIRONMENT\n"
                 + "The device keeps changing while you think (1-5 s turn latency). If the screen progressed further than "
                 + "expected, adapt instead of treating it as an error. For loading spinners or transitions, use `wait`.\n\n"
@@ -816,6 +819,16 @@ final class FlashLoop {
         return count;
     }
 
+    /** "update_memory 212, tap 64": how much of the output each tool call's arguments took (characters). */
+    private static String argSizes(List<ChatClient.ToolCall> calls) {
+        StringBuilder sb = new StringBuilder();
+        for (ChatClient.ToolCall c : calls) {
+            if (sb.length() > 0) sb.append(", ");
+            sb.append(c.name).append(' ').append(c.args.toString().length());
+        }
+        return sb.length() == 0 ? "no tools" : sb.toString();
+    }
+
     // ------------------------------------------------------------------ tools
 
     static JSONArray tools(boolean finishOnly) {
@@ -823,7 +836,7 @@ final class FlashLoop {
             JSONObject idx = prop("integer", "Index of the element in the current Visible UI Elements list.");
             JSONObject x = prop("integer", "Normalized x (0-1000), used when the target is not listed.");
             JSONObject y = prop("integer", "Normalized y (0-1000), used when the target is not listed.");
-            JSONObject desc = prop("string", "Short name of what you aim at (required with x,y).");
+            JSONObject desc = prop("string", "Short name of what you aim at. Only with x,y; leave it out when you give index.");
             JSONObject finish = tool("finish", "End the task. Turn-ending.",
                     new JSONObject()
                             .put("status", new JSONObject().put("type", "string")
@@ -890,11 +903,11 @@ final class FlashLoop {
 
     private static JSONObject commits() throws Exception {
         return prop("boolean", "True when this action sends, posts, calls, pays, buys, deletes, invites or changes "
-                + "an account or system setting. The user is asked first.");
+                + "an account or system setting. The user is asked first. Leave it out otherwise.");
     }
 
     private static JSONObject summary() throws Exception {
-        return prop("string", "With commits: what will happen, in the objective's language.");
+        return prop("string", "Only with commits=true: what will happen, in the objective's language.");
     }
 
     private static JSONObject prop(String type, String description) throws Exception {
