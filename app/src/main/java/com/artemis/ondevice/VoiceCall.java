@@ -146,16 +146,10 @@ final class VoiceCall implements RealtimeSocket.Listener {
     private volatile boolean hangUpAfterReply;
     private volatile boolean speakingNow;
     /**
-     * The user's voiceprint (null: everyone is heard), and the current sentence's audio: for
-     * checking it (the first VOICEPRINT_SECONDS) and for recognizing it again once it is finished.
+     * The current sentence's audio, checked against the user's voiceprint as it comes in, and
+     * recognized again once it is finished. Set when the call starts talking.
      */
-    private float[] voiceprint;
-    private static final int VOICEPRINT_SECONDS = 6, SENTENCE_SECONDS = 20;
-    private final java.util.ArrayList<float[]> utterance = new java.util.ArrayList<>();
-    private int utteranceSamples;
-    /** The last voiceprint check of this sentence: how much audio it had and what it decided. */
-    private int checkedSamples;
-    private boolean checkedUser = true;
+    private SentenceAudio sentence;
     /** The current utterance already cut off the reply. */
     private boolean cutIn;
     /** The user stopped the task by voice and was already told; its "stopped" result needs no second word. */
@@ -439,7 +433,8 @@ final class VoiceCall implements RealtimeSocket.Listener {
     // ------------------------------------------------------------------ main loop (caller thread)
 
     private void talk() throws InterruptedException {
-        voiceprint = Voiceprint.load(ctx);
+        float[] voiceprint = Voiceprint.load(ctx);
+        sentence = new SentenceAudio(IN_RATE, voiceprint == null ? null : s -> engine.voiceScore(voiceprint, s));
         status.accept(ctx.getString(R.string.voice_call_talking));
         show(VoiceCallPanel.State.LISTENING);
         long start = System.currentTimeMillis();
@@ -513,22 +508,20 @@ final class VoiceCall implements RealtimeSocket.Listener {
                         show(VoiceCallPanel.State.HEARING);
                         AppLog.i(AppLog.CALL, "you started");
                         engine.startUtterance();
-                        utterance.clear();
-                        utteranceSamples = 0;
-                        checkedSamples = 0;
-                        checkedUser = true;
+                        sentence.clear();
                         for (float[] p : preRoll) {
                             engine.feedUtterance(p);
-                            keep(p);
+                            sentence.add(p);
                         }
                         preRoll.clear();
                     }
                     engine.feedUtterance(samples);
-                    keep(samples);
+                    sentence.add(samples);
                     // Talking over the reply cuts it off, but only once words are recognized: a cough,
-                    // a door or the TV must not cut off a task result.
+                    // a door or the TV must not cut off a task result. With a voiceprint, only once the
+                    // latest 1.5 s sound like the user: someone talking nearby must not cut it off.
                     if (!cutIn && (now < playingUntil || responseActive) && !engine.utteranceText().isEmpty()
-                            && isUser(false)) {
+                            && sentence.latestIsUser()) {
                         cutIn = true;
                         AppLog.i(AppLog.CALL, "words over its reply: cancelling it");
                         interruptReply();
@@ -621,6 +614,12 @@ final class VoiceCall implements RealtimeSocket.Listener {
             show(VoiceCallPanel.State.LISTENING);
             return;
         }
+        if (!fromUser()) {
+            // Say so instead of ignoring the user silently when the voiceprint got them wrong.
+            if (panel != null) panel.userSaid(ctx.getString(R.string.voice_call_not_you));
+            show(VoiceCallPanel.State.LISTENING);
+            return;
+        }
         String said = recognizeSentence(streamed);
         // One recognized character is mostly noise or a word caught from someone nearby ("嗯", "啊").
         // Kept only where one word means something: stopping, or answering the card on screen.
@@ -630,76 +629,42 @@ final class VoiceCall implements RealtimeSocket.Listener {
             show(VoiceCallPanel.State.LISTENING);
             return;
         }
-        if (!isUser(true)) {
-            // Say so instead of ignoring the user silently when the voiceprint got them wrong.
-            if (panel != null) panel.userSaid(ctx.getString(R.string.voice_call_not_you));
-            show(VoiceCallPanel.State.LISTENING);
-            return;
-        }
         handleTurn(said);
     }
 
-    private void keep(float[] samples) {
-        // Bounded memory for long background talk; a turn ends after MAX_UTTERANCE_MS anyway.
-        if (utteranceSamples >= SENTENCE_SECONDS * IN_RATE) return;
-        utterance.add(samples);
-        utteranceSamples += samples.length;
-    }
-
-    /** The first {@code max} samples of the sentence's audio as one array. */
-    private float[] sentenceAudio(int max) {
-        float[] all = new float[Math.min(max, utteranceSamples)];
-        int at = 0;
-        for (float[] c : utterance) {
-            int n = Math.min(c.length, all.length - at);
-            if (n <= 0) break;
-            System.arraycopy(c, 0, all, at, n);
-            at += n;
-        }
-        return all;
+    /**
+     * Whether the finished sentence is the user's, by the voiceprint window by window. With the
+     * sentence recognizer any window of theirs is enough (only those are recognized again);
+     * without it the streaming text holds everyone's words, so most of it must be theirs.
+     */
+    private boolean fromUser() {
+        long t0 = System.currentTimeMillis();
+        sentence.finish();
+        boolean user = engine.hasSentenceRecognizer() ? sentence.anyUser() : sentence.userShare() >= 0.5f;
+        AppLog.i(AppLog.CALL, String.format(Locale.ROOT, "voiceprint: %s, %s (last check %d ms)",
+                sentence.describe(), user ? "you" : "someone else, ignored", System.currentTimeMillis() - t0));
+        return user;
     }
 
     /**
      * The finished sentence recognized again by the bigger model (the streaming one makes many
-     * mistakes); the streaming text when that model is missing or hears nothing.
+     * mistakes), from the user's own stretches only; the streaming text when that model is
+     * missing or hears nothing.
      */
     private String recognizeSentence(String streamed) {
-        if (!engine.hasSentenceRecognizer() || utteranceSamples == 0) return streamed;
+        if (!engine.hasSentenceRecognizer() || sentence.samples() == 0) return streamed;
         long t0 = System.currentTimeMillis();
+        float[] audio = sentence.userAudio();
         // Trailing silence, like the streaming recognizer gets: the last word is not cut off.
-        float[] audio = sentenceAudio(Integer.MAX_VALUE);
         float[] padded = java.util.Arrays.copyOf(audio, audio.length + IN_RATE * 3 / 10);
         String text = engine.recognizeSentence(padded);
         // Never the words, only how much they differ.
-        AppLog.i(AppLog.CALL, String.format(Locale.ROOT, "sentence recognizer: %.1f s of audio in %d ms, %d chars (streaming had %d%s)",
-                audio.length / (float) IN_RATE, System.currentTimeMillis() - t0, text == null ? 0 : text.length(),
-                streamed.length(), text != null && text.equals(streamed) ? ", same" : ", differs"));
-        return text == null || text.isEmpty() ? streamed : text;
-    }
-
-    /**
-     * Whether the sentence so far is the user's, by the voiceprint. True without a voiceprint and
-     * for speech too short to tell (a quick "好" or "停"). {@code final_} logs the decision.
-     */
-    private boolean isUser(boolean final_) {
-        // The first seconds are enough to tell, and keep each check quick.
-        int samples = Math.min(utteranceSamples, VOICEPRINT_SECONDS * IN_RATE);
-        if (voiceprint == null || samples < Voiceprint.MIN_SECONDS * IN_RATE) return true;
-        // While someone else talks, do not re-check every 100 ms chunk (~100 ms each): only after
-        // another second of speech, or at the end of the sentence.
-        if (!final_ && checkedSamples > 0 && samples < checkedSamples + IN_RATE) return checkedUser;
-        float[] all = sentenceAudio(samples);
-        long t0 = System.currentTimeMillis();
-        float score = engine.voiceScore(voiceprint, all);
-        boolean user = Float.isNaN(score) || score >= Voiceprint.THRESHOLD;
-        boolean changed = checkedSamples == 0 || user != checkedUser;
-        checkedSamples = samples;
-        checkedUser = user;
-        if (final_ || changed) {
-            AppLog.i(AppLog.CALL, String.format(Locale.ROOT, "voiceprint %.2f (%s) in %d ms",
-                    score, user ? "you" : "someone else, ignored", System.currentTimeMillis() - t0));
-        }
-        return user;
+        AppLog.i(AppLog.CALL, String.format(Locale.ROOT, "sentence recognizer: %.1f of %.1f s of audio in %d ms, %d chars (streaming had %d%s)",
+                audio.length / (float) IN_RATE, sentence.samples() / (float) IN_RATE, System.currentTimeMillis() - t0,
+                text == null ? 0 : text.length(), streamed.length(), text != null && text.equals(streamed) ? ", same" : ", differs"));
+        // Some of it was someone else's: their words are in the streaming text, so it is no fallback.
+        if (text == null || text.isEmpty()) return audio.length == sentence.samples() ? streamed : "";
+        return text;
     }
 
     /** Handles one sentence of the user's: stop words, the card on screen, else the model's answer. */

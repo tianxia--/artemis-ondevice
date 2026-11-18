@@ -6,6 +6,9 @@ All notable changes to this project are listed here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+- Voice calls let through someone talking next to you: their speech ran into your sentence without a pause, and the voiceprint judged the whole sentence by its first seconds, where your voice dominated. The voiceprint now checks every 1.5 s, and only your parts are recognized again; a sentence with none of yours is ignored (without the sentence recognizer, at least half of it must be yours). Someone else's voice no longer cuts off the reply either: cutting in waits until 1.5 s of your voice is confirmed.
+
 ## [0.4.0] - 2026-11-17
 
 Voice: say the wake word and talk with a realtime voice model that hands phone work to the agent and reads the result back, with on-phone recognition, a voiceprint and caption correction. Direct answers from the phone's state, clearer Settings and Home, and logs for troubleshooting.
